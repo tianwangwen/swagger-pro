@@ -252,7 +252,7 @@
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 0 20px 0 45px;
+            padding: 0 44px 0 45px;
             color: var(--text-primary);
             font-size: 15px;
             transition: all 0.3s ease;
@@ -269,6 +269,33 @@
             top: 50%;
             transform: translateY(-50%);
             color: var(--text-secondary);
+            pointer-events: none;
+        }
+        .search-clear-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+            opacity: 0;
+            color: var(--text-secondary);
+            font-size: 14px;
+            pointer-events: none;
+        }
+        .search-clear-btn.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .search-clear-btn:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
         }
         .search-results {
             position: absolute;
@@ -409,10 +436,14 @@
             border-right: 2px solid var(--text-secondary);
             border-bottom: 2px solid var(--text-secondary);
             transform: rotate(-45deg);
-            transition: transform 0.2s;
+            transition: transform 0.2s, border-color 0.2s;
         }
         .controller-group.expanded .controller-icon {
             transform: rotate(45deg);
+        }
+        .controller-group.has-favorites .controller-icon {
+            border-right-color: var(--accent-orange);
+            border-bottom-color: var(--accent-orange);
         }
         .controller-name {
             font-size: 14px;
@@ -663,6 +694,32 @@
         .api-card.favorited {
             border-left: 3px solid var(--accent-orange);
         }
+        .share-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+            opacity: 0;
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-left: 8px;
+            flex-shrink: 0;
+        }
+        .api-card-header:hover .share-icon {
+            opacity: 1;
+        }
+        .share-icon:hover {
+            color: var(--accent-blue);
+            background: var(--bg-tertiary);
+        }
+        .share-icon.copied {
+            color: var(--accent-green);
+            opacity: 1;
+        }
         .expand-icon {
             color: var(--text-secondary);
             transition: transform 0.3s;
@@ -696,6 +753,152 @@
             background: var(--bg-tertiary);
             color: var(--accent-orange);
             border-color: var(--accent-orange);
+        }
+        .settings-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+        .settings-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--accent-blue);
+        }
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 200px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+        .settings-modal.active {
+            display: flex;
+        }
+        .settings-modal-content {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        .settings-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .settings-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .settings-modal-close {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+        .settings-modal-close:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        .settings-modal-body {
+            padding: 24px;
+        }
+        .settings-item {
+            margin-bottom: 20px;
+        }
+        .settings-item label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .settings-item input {
+            width: 100%;
+            height: 40px;
+            padding: 0 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+        .settings-item input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .settings-item-desc {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        .settings-modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 20px 24px;
+            border-top: 1px solid var(--border-color);
+        }
+        .settings-btn-save,
+        .settings-btn-cancel {
+            height: 36px;
+            padding: 0 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border-color);
+        }
+        .settings-btn-save {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+        .settings-btn-save:hover {
+            background: #3b82f6;
+            border-color: #3b82f6;
+        }
+        .settings-btn-cancel {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        .settings-btn-cancel:hover {
+            background: var(--bg-tertiary);
         }
         .favorites-dropdown {
             position: absolute;
@@ -831,6 +1034,36 @@
             font-family: monospace;
             color: var(--accent-blue);
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .param-expand-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+            font-size: 12px;
+            flex-shrink: 0;
+            user-select: none;
+        }
+        .param-expand-icon:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        .param-expand-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+        .param-nested-content {
+            display: block;
+        }
+        .param-nested-content.collapsed {
+            display: none;
         }
         .param-type {
             color: var(--accent-orange);
@@ -978,12 +1211,33 @@
         <div class="search-container">
             <span class="search-icon">🔍</span>
             <input type="text" class="search-box" placeholder="搜索接口地址、描述或参数... (Ctrl + K)" id="globalSearch">
+            <span class="search-clear-btn" id="searchClearBtn" title="清空搜索">✕</span>
             <div class="search-results" id="searchResults"></div>
         </div>
         <div class="header-actions">
             <div class="favorites-container">
                 <button class="favorites-btn" id="favoritesBtn" title="查看收藏的接口">⭐</button>
                 <div class="favorites-dropdown" id="favoritesDropdown"></div>
+            </div>
+            <button class="settings-btn" id="settingsBtn" title="设置">⚙️</button>
+        </div>
+        <div class="settings-modal" id="settingsModal">
+            <div class="settings-modal-content">
+                <div class="settings-modal-header">
+                    <h3>设置</h3>
+                    <button class="settings-modal-close" id="settingsModalClose">✕</button>
+                </div>
+                <div class="settings-modal-body">
+                    <div class="settings-item">
+                        <label for="baseUrlInput">Base URL</label>
+                        <input type="text" id="baseUrlInput" placeholder="/api/ddsadmin" />
+                        <div class="settings-item-desc">设置后，复制接口地址时会自动加上此Base URL</div>
+                    </div>
+                </div>
+                <div class="settings-modal-footer">
+                    <button class="settings-btn-save" id="settingsBtnSave">保存</button>
+                    <button class="settings-btn-cancel" id="settingsBtnCancel">取消</button>
+                </div>
             </div>
         </div>
     `;
@@ -1005,6 +1259,89 @@
     renderSwaggerContent(allApis, baseUrl);
   }
   
+  // 生成分享链接
+  function generateShareUrl(tag, operationId, apiGroupName) {
+    if (!tag || !operationId) {
+      return window.location.href;
+    }
+    
+    const currentUrl = new URL(window.location.href);
+    const pathname = currentUrl.pathname || '';
+    const encodedTag = encodeURIComponent(tag);
+    
+    // 判断当前是否为第三方封装的 doc.html（如 Knife4j 等）
+    // 约定：如果当前路径包含 doc.html，则使用三层结构：#/apiGroupName/tagName/methodName
+    // 否则使用两层结构：#/tagName/methodName（不带 apiGroupName）
+    const isDocHtml = pathname.endsWith('/doc.html') || pathname.endsWith('doc.html');
+    
+    let shareUrl;
+    if (isDocHtml && apiGroupName) {
+      const encodedApiGroupName = encodeURIComponent(apiGroupName);
+      shareUrl = `${currentUrl.origin}${pathname}#/${encodedApiGroupName}/${encodedTag}/${operationId}`;
+    } else {
+      // 兼容原生 swagger-ui（如 swagger-ui.html）：只拼两层
+      shareUrl = `${currentUrl.origin}${pathname}#/${encodedTag}/${operationId}`;
+    }
+    
+    return shareUrl;
+  }
+  
+  // 解析分享链接并跳转到对应接口
+  function handleShareUrl(allEndpoints) {
+    const hash = window.location.hash;
+    if (!hash || hash.length <= 2) {
+      return; // 没有hash或hash为空
+    }
+    
+    // 解析hash格式，支持两种：
+    // 1. 新格式：#/apiGroupName/tagName/methodName
+    // 2. 旧格式：#/tagName/methodName
+    let hashMatch = hash.match(/^#\/([^/]+)\/([^/]+)\/(.+)$/);
+    let tag, operationId, apiGroupName;
+    
+    if (hashMatch) {
+      // 新格式：包含apiGroupName
+      apiGroupName = decodeURIComponent(hashMatch[1]);
+      tag = decodeURIComponent(hashMatch[2]);
+      operationId = hashMatch[3];
+    } else {
+      // 旧格式：只有tagName和operationId
+      hashMatch = hash.match(/^#\/([^/]+)\/(.+)$/);
+      if (!hashMatch) {
+        return; // hash格式不正确
+      }
+      tag = decodeURIComponent(hashMatch[1]);
+      operationId = hashMatch[2];
+    }
+    
+    // 查找对应的endpoint
+    let endpoint;
+    if (apiGroupName) {
+      // 如果提供了apiGroupName，优先匹配apiGroupName
+      endpoint = allEndpoints.find(ep => 
+        ep.apiGroup === apiGroupName && 
+        ep.tag === tag && 
+        ep.operationId === operationId
+      );
+    }
+    
+    // 如果没找到或没有apiGroupName，则只匹配tag和operationId
+    if (!endpoint) {
+      endpoint = allEndpoints.find(ep => 
+        ep.tag === tag && ep.operationId === operationId
+      );
+    }
+    
+    if (endpoint) {
+      // 延迟跳转，确保页面已渲染完成
+      setTimeout(() => {
+        if (window.scrollToEndpoint) {
+          window.scrollToEndpoint(endpoint.path, endpoint.method, endpoint.tag);
+        }
+      }, 300);
+    }
+  }
+  
   // 渲染Swagger内容
   function renderSwaggerContent(allApis, baseUrl) {
     // 解析所有API数据
@@ -1023,14 +1360,12 @@
     });
     
     allApis.forEach(apiGroup => {
-      console.log('apiGroup ->', apiGroup)
       const paths = apiGroup.data.paths || {};
       Object.keys(paths).forEach(path => {
         const methods = paths[path];
         Object.keys(methods).forEach(method => {
           const endpoint = methods[method];
           const tags = endpoint.tags || ['未分类'];
-          console.log('tags ->', tags)
           const tag = tags[0];
           
           if (!apiMap.has(tag)) {
@@ -1067,11 +1402,15 @@
     
     // 初始化交互功能
     initInteractions();
+    
+    // 处理分享链接（延迟执行，确保页面已渲染）
+    setTimeout(() => {
+      handleShareUrl(allEndpoints);
+    }, 1000);
   }
 
   // 渲染侧边栏
   function renderSidebar(apiMap, tagDescriptionMap) {
-    console.log('apiMap ->', apiMap)
     const navTree = document.getElementById('navTree');
     if (!navTree) return;
     
@@ -1092,10 +1431,14 @@
     
     let html = '';
     apiMap.forEach((endpoints, tag) => {
-      console.log('endpoints ->', endpoints, tag)
       const description = tagDescriptionMap.get(tag) || '';
+      
+      // 检查该controller-group下是否有被收藏的接口
+      const hasFavorites = endpoints.some(ep => isFavorited(ep.path, ep.method));
+      const hasFavoritesClass = hasFavorites ? 'has-favorites' : '';
+      
       html += `
-        <div class="controller-group" data-tag="${escapeHtml(tag)}">
+        <div class="controller-group ${hasFavoritesClass}" data-tag="${escapeHtml(tag)}">
           <div class="controller-header" data-tag="${escapeHtml(tag)}">
             <span class="controller-icon"></span>
             <span class="controller-name">
@@ -1185,6 +1528,7 @@
         if (e.target.closest('.api-details')) return;
         if (e.target.closest('.copy-path-btn')) return; // 不阻止复制按钮的点击
         if (e.target.closest('.favorite-icon')) return; // 不阻止收藏按钮的点击
+        if (e.target.closest('.share-icon')) return; // 不阻止分享按钮的点击
         
         // 切换展开/收起状态
         this.classList.toggle('expanded');
@@ -1208,9 +1552,32 @@
         const path = this.getAttribute('data-path');
         if (!path) return;
         
+        // 获取保存的baseUrl
+        function getBaseUrl() {
+          try {
+            return localStorage.getItem('swagger-baseUrl') || '';
+          } catch (e) {
+            return '';
+          }
+        }
+        
+        // 构建完整的路径（加上baseUrl）
+        let fullPath = path;
+        const baseUrl = getBaseUrl().trim();
+        if (baseUrl) {
+          const normalizedBaseUrl = baseUrl.replace(/\/+$/, ''); // 移除末尾的斜杠
+          const normalizedPath = path.replace(/^\/+/, '/'); // 确保路径以单个斜杠开头
+          // 如果 baseUrl 只是斜杠，则只使用路径
+          if (normalizedBaseUrl && normalizedBaseUrl !== '/') {
+            fullPath = normalizedBaseUrl + normalizedPath;
+          } else {
+            fullPath = normalizedPath;
+          }
+        }
+        
         // 复制到剪贴板
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(path).then(() => {
+          navigator.clipboard.writeText(fullPath).then(() => {
             // 复制成功反馈
             const originalText = this.textContent;
             this.textContent = '✓';
@@ -1223,11 +1590,11 @@
           }).catch(err => {
             console.error('复制失败:', err);
             // 降级方案：使用传统方法
-            fallbackCopy(path, this);
+            fallbackCopy(fullPath, this);
           });
         } else {
           // 降级方案：使用传统方法
-          fallbackCopy(path, this);
+          fallbackCopy(fullPath, this);
         }
       });
     });
@@ -1281,6 +1648,29 @@
           targetContent.classList.add('active');
         }
       });
+    });
+    
+    // 绑定协议表格展开/收起事件（使用事件委托，支持动态生成的元素）
+    contentArea.addEventListener('click', function(e) {
+      if (e.target.closest('.param-expand-icon')) {
+        const icon = e.target.closest('.param-expand-icon');
+        e.stopPropagation();
+        const expandId = icon.getAttribute('data-expand-id');
+        if (!expandId) return;
+        
+        const nestedContent = document.getElementById(expandId);
+        if (!nestedContent) return;
+        
+        // 切换展开/收起状态
+        const isCollapsed = nestedContent.classList.contains('collapsed');
+        if (isCollapsed) {
+          nestedContent.classList.remove('collapsed');
+          icon.classList.remove('collapsed');
+        } else {
+          nestedContent.classList.add('collapsed');
+          icon.classList.add('collapsed');
+        }
+      }
     });
     
     // 绑定枚举复制按钮事件
@@ -1348,6 +1738,94 @@
     
     // 初始化收藏功能
     initFavorites();
+    
+    // 初始化设置功能
+    initSettings();
+  }
+  
+  // 初始化设置功能
+  function initSettings() {
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsModal = document.getElementById('settingsModal');
+    const settingsModalClose = document.getElementById('settingsModalClose');
+    const settingsBtnSave = document.getElementById('settingsBtnSave');
+    const settingsBtnCancel = document.getElementById('settingsBtnCancel');
+    const baseUrlInput = document.getElementById('baseUrlInput');
+    
+    if (!settingsBtn || !settingsModal) return;
+    
+    // 获取保存的baseUrl
+    function getBaseUrl() {
+      try {
+        return localStorage.getItem('swagger-baseUrl') || '';
+      } catch (e) {
+        return '';
+      }
+    }
+    
+    // 保存baseUrl
+    function saveBaseUrl(baseUrl) {
+      try {
+        localStorage.setItem('swagger-baseUrl', baseUrl);
+      } catch (e) {
+        console.error('保存baseUrl失败:', e);
+      }
+    }
+    
+    // 打开设置弹窗
+    function openSettings() {
+      if (baseUrlInput) {
+        baseUrlInput.value = getBaseUrl();
+      }
+      settingsModal.classList.add('active');
+    }
+    
+    // 关闭设置弹窗
+    function closeSettings() {
+      settingsModal.classList.remove('active');
+    }
+    
+    // 保存设置
+    function saveSettings() {
+      if (baseUrlInput) {
+        const baseUrl = baseUrlInput.value.trim();
+        saveBaseUrl(baseUrl);
+        console.log('保存baseUrl:', baseUrl);
+        closeSettings();
+        // 提示保存成功
+        const originalText = settingsBtnSave.textContent;
+        settingsBtnSave.textContent = '已保存';
+        setTimeout(() => {
+          settingsBtnSave.textContent = originalText;
+        }, 1000);
+      }
+    }
+    
+    // 绑定事件
+    settingsBtn.addEventListener('click', openSettings);
+    if (settingsModalClose) {
+      settingsModalClose.addEventListener('click', closeSettings);
+    }
+    if (settingsBtnSave) {
+      settingsBtnSave.addEventListener('click', saveSettings);
+    }
+    if (settingsBtnCancel) {
+      settingsBtnCancel.addEventListener('click', closeSettings);
+    }
+    
+    // 点击弹窗外部关闭
+    settingsModal.addEventListener('click', function(e) {
+      if (e.target === settingsModal) {
+        closeSettings();
+      }
+    });
+    
+    // ESC键关闭
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && settingsModal.classList.contains('active')) {
+        closeSettings();
+      }
+    });
   }
   
   // 收藏功能管理
@@ -1435,6 +1913,36 @@
           item.classList.remove('favorited');
         }
       });
+      
+      // 更新controller-group的标识
+      updateControllerGroupFavorites();
+    }
+    
+    // 更新controller-group的收藏标识
+    function updateControllerGroupFavorites() {
+      document.querySelectorAll('.controller-group').forEach(group => {
+        const tag = group.getAttribute('data-tag');
+        if (!tag) return;
+        
+        // 检查该group下是否有收藏的接口
+        const endpointItems = group.querySelectorAll('.endpoint-item');
+        let hasFavorites = false;
+        
+        endpointItems.forEach(item => {
+          const path = item.getAttribute('data-path');
+          const method = item.getAttribute('data-method');
+          if (isFavorited(path, method)) {
+            hasFavorites = true;
+          }
+        });
+        
+        // 更新has-favorites类
+        if (hasFavorites) {
+          group.classList.add('has-favorites');
+        } else {
+          group.classList.remove('has-favorites');
+        }
+      });
     }
     
     // 更新收藏下拉列表
@@ -1502,7 +2010,70 @@
           addFavorite(path, method, tag, summary);
         }
       }
+      
+      // 处理分享按钮点击
+      if (e.target.closest('.share-icon')) {
+        const icon = e.target.closest('.share-icon');
+        const path = icon.getAttribute('data-path');
+        const method = icon.getAttribute('data-method');
+        const tag = icon.getAttribute('data-tag');
+        const operationId = icon.getAttribute('data-operation-id');
+        const apiGroupName = icon.getAttribute('data-api-group');
+        
+        e.stopPropagation(); // 阻止触发卡片展开
+        
+        // 生成分享链接
+        const shareUrl = generateShareUrl(tag, operationId, apiGroupName);
+        
+        // 复制到剪贴板
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shareUrl).then(() => {
+            const originalText = icon.textContent;
+            icon.textContent = '✓';
+            icon.classList.add('copied');
+            
+            setTimeout(() => {
+              icon.textContent = originalText;
+              icon.classList.remove('copied');
+            }, 2000);
+          }).catch(err => {
+            console.error('复制失败:', err);
+            fallbackCopyShare(shareUrl, icon);
+          });
+        } else {
+          fallbackCopyShare(shareUrl, icon);
+        }
+      }
     });
+    
+    // 降级复制方案（分享链接）
+    function fallbackCopyShare(text, btn) {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        const originalText = btn.textContent;
+        btn.textContent = '✓';
+        btn.classList.add('copied');
+        
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove('copied');
+        }, 2000);
+      } catch (err) {
+        console.error('复制失败:', err);
+        alert('复制失败，请手动复制');
+      }
+      
+      document.body.removeChild(textArea);
+    }
     
     // 绑定收藏按钮点击事件
     const favoritesBtn = document.getElementById('favoritesBtn');
@@ -1561,6 +2132,7 @@
             <span class="api-summary">${escapeHtml(endpoint.summary || '')}</span>
           </span>
           <span class="favorite-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" title="收藏接口">⭐</span>
+          <span class="share-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" data-operation-id="${escapeHtml(endpoint.operationId || '')}" data-api-group="${escapeHtml(endpoint.apiGroup || '')}" title="分享接口">🔗</span>
           <span class="expand-icon">▼</span>
         </div>
         <div class="api-details">
@@ -1908,10 +2480,45 @@
         const isRequired = required.includes(key);
         const propType = getSchemaType(prop, definitions);
         
+        // 判断是否有嵌套内容
+        const newVisited = new Set(visited);
+        let nestedHtml = '';
+        let hasNested = false;
+        
+        if (prop.type === 'object' && prop.properties) {
+          nestedHtml = renderSchemaProtocol(prop, definitions, newVisited, level + 1);
+          hasNested = true;
+        } else if (prop.type === 'array' && prop.items) {
+          if (prop.items.type === 'object' || prop.items.properties || prop.items.$ref) {
+            nestedHtml = `
+              ${renderSchemaProtocol(prop.items, definitions, newVisited, level + 1)}
+            `;
+            hasNested = true;
+          }
+        } else if (prop.$ref) {
+          const refName = prop.$ref.split('/').pop();
+          if (!newVisited.has(refName)) {
+            const refSchema = definitions[refName];
+            if (refSchema) {
+              nestedHtml = renderSchemaProtocol(refSchema, definitions, newVisited, level + 1);
+              hasNested = true;
+            }
+          } else {
+            nestedHtml = '<div style="color: var(--text-secondary); padding: 8px;">[循环引用: ' + escapeHtml(refName) + ']</div>';
+            hasNested = true;
+          }
+        }
+        
+        // 生成唯一ID用于展开/收起
+        const expandId = `param-expand-${level}-${key}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
         html += `
           <tr>
             <td>
-              <span class="param-name">${escapeHtml(key)}</span>
+              <span class="param-name">
+                ${hasNested ? `<span class="param-expand-icon" data-expand-id="${expandId}" title="展开/收起">▼</span>` : '<span style="width: 16px; display: inline-block;"></span>'}
+                ${escapeHtml(key)}
+              </span>
             </td>
             <td class="param-desc">
               <span class="param-desc-text">${escapeHtml(prop.description || '')}</span>
@@ -1922,35 +2529,11 @@
           </tr>
         `;
         
-        // 如果是嵌套对象或数组，递归显示
-        const newVisited = new Set(visited);
-        let nestedHtml = '';
-        
-        if (prop.type === 'object' && prop.properties) {
-          nestedHtml = renderSchemaProtocol(prop, definitions, newVisited, level + 1);
-        } else if (prop.type === 'array' && prop.items) {
-          if (prop.items.type === 'object' || prop.items.properties || prop.items.$ref) {
-            nestedHtml = `
-              ${renderSchemaProtocol(prop.items, definitions, newVisited, level + 1)}
-            `;
-          }
-        } else if (prop.$ref) {
-          const refName = prop.$ref.split('/').pop();
-          if (!newVisited.has(refName)) {
-            const refSchema = definitions[refName];
-            if (refSchema) {
-              nestedHtml = renderSchemaProtocol(refSchema, definitions, newVisited, level + 1);
-            }
-          } else {
-            nestedHtml = '<div style="color: var(--text-secondary); padding: 8px;">[循环引用: ' + escapeHtml(refName) + ']</div>';
-          }
-        }
-        
         if (nestedHtml) {
           html += `
             <tr>
               <td colspan="4" style="padding: 0; border-top: none;">
-                <div style="padding: 12px 20px; background: rgba(15, 23, 42, 0.5); border-left: 2px solid var(--border-color);">
+                <div class="param-nested-content" id="${expandId}" style="padding: 12px 20px; background: rgba(15, 23, 42, 0.5); border-left: 2px solid var(--border-color);">
                   ${nestedHtml}
                 </div>
               </td>
@@ -1999,31 +2582,49 @@
     return 'string';
   }
   
-  // 格式化响应
-  function formatResponses(responses) {
-    const codes = Object.keys(responses);
-    if (codes.length === 0) return 'No response defined';
-    
-    let result = '';
-    codes.forEach(code => {
-      const response = responses[code];
-      result += `${code}: ${response.description || 'OK'}\n`;
-      if (response.schema) {
-        result += `Schema: ${JSON.stringify(response.schema, null, 2)}\n\n`;
-      }
-    });
-    
-    return result || 'No response body defined';
-  }
-  
   // 初始化搜索功能
   function initSearch(allEndpoints) {
     const searchInput = document.getElementById('globalSearch');
     const searchResults = document.getElementById('searchResults');
+    const searchClearBtn = document.getElementById('searchClearBtn');
     
     if (!searchInput || !searchResults) return;
     
+    // 更新清空按钮的显示状态
+    function updateClearButton() {
+      if (searchClearBtn) {
+        if (searchInput.value.trim().length > 0) {
+          searchClearBtn.classList.add('visible');
+        } else {
+          searchClearBtn.classList.remove('visible');
+        }
+      }
+    }
+    
+    // 清空搜索内容
+    function clearSearch() {
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+        updateClearButton();
+        // 触发input事件以更新搜索结果
+        searchInput.dispatchEvent(new Event('input'));
+      }
+    }
+    
+    // 绑定清空按钮点击事件
+    if (searchClearBtn) {
+      searchClearBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        clearSearch();
+      });
+    }
+    
+    // 初始化清空按钮状态
+    updateClearButton();
+    
     searchInput.addEventListener('input', (e) => {
+      updateClearButton();
       const query = e.target.value.trim().toLowerCase();
       
       if (query.length === 0) {
