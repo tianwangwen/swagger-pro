@@ -1,4 +1,4 @@
-// Beautify Swagger UI 插件
+// Swagger Pro 插件
 (function() {
   'use strict';
 
@@ -124,7 +124,7 @@
     
     // 设置标题
     const apiInfo = allApis[0]?.data?.info || {};
-    document.title = `${apiInfo.title || 'Swagger API'} - BSUI`;
+    document.title = `${apiInfo.title || 'Swagger API'} - Swagger Pro`;
     
     // 注入样式
     injectStyles();
@@ -1202,9 +1202,9 @@
     const logoUrl = chrome.runtime.getURL('images/logo.png');
     return `
         <div class="logo-section">
-            <div class="logo"><img src="${logoUrl}" alt="BSUI Logo"></div>
+            <div class="logo"><img src="${logoUrl}" alt="Swagger Pro Logo"></div>
             <div class="brand-text">
-                <h1>BSUI</h1>
+                <h1>Swagger Pro</h1>
                 <span>API Documentation</span>
             </div>
         </div>
