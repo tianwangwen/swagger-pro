@@ -1,6 +1,6 @@
 {
   "name": "Swagger Pro",
-  "description": "Integrates a suite of features including global search, quick copy, bookmarking, BaseUrl configuration, and sharing to significantly enhance Swagger's usability and efficiency.",
+  "description": "Enhanced Swagger with global search, quick copy, bookmarking and sharing—boosting usability and efficiency",
   "version": "1.0",
   "manifest_version": 3,
   "icons": {
@@ -19,7 +19,6 @@
     "default_title": "Swagger Pro"
   },
   "permissions": [
-    "activeTab",
     "storage"
   ],
   "host_permissions": [

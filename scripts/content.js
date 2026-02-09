@@ -24,44 +24,102 @@
       const baseUrl = currentUrl.origin + currentUrl.pathname.replace(/\/[^/]*$/, '');
       
       // 显示加载提示
-      showLoading();
+      showLoading('正在获取 Swagger 配置...');
 
-      // 1. 获取swagger-resources
-      const resourcesResponse = await fetch(`${baseUrl}/swagger-resources`);
-      if (!resourcesResponse.ok) {
-        throw new Error('无法获取 Swagger 资源');
+      let allApis = [];
+
+      // 1. 先尝试获取 v2 版本的 swagger-resources
+      try {
+        const resourcesResponse = await fetch(`${baseUrl}/swagger-resources`);
+        if (resourcesResponse.ok) {
+          const resources = await resourcesResponse.json();
+          if (resources && resources.length > 0) {
+            updateLoading();
+            // 2. 获取所有group的API文档
+            for (let i = 0; i < resources.length; i++) {
+              const resource = resources[i];
+              updateLoading();
+              try {
+                const apiUrl = resource.url.startsWith('http') 
+                  ? resource.url 
+                  : `${baseUrl}${resource.url}`;
+                const apiResponse = await fetch(apiUrl);
+                if (apiResponse.ok) {
+                  const apiData = await apiResponse.json();
+                  allApis.push({
+                    name: resource.name,
+                    data: apiData,
+                    isV3: false
+                  });
+                }
+              } catch (error) {
+                console.error(`获取 ${resource.name} 的API文档失败:`, error);
+              }
+            }
+          }
+        } else {
+          console.log('v2 swagger-resources 返回状态码:', resourcesResponse.status);
+        }
+      } catch (error) {
+        console.log('v2 版本获取失败，尝试 v3 版本:', error);
       }
-      const resources = await resourcesResponse.json();
 
-      if (!resources || resources.length === 0) {
-        throw new Error('未找到 Swagger 资源');
-      }
-
-      // 2. 获取所有group的API文档
-      const allApis = [];
-      for (const resource of resources) {
+      // 3. 如果 v2 失败或没有获取到数据，尝试获取 v3 版本
+      if (allApis.length === 0) {
         try {
-          const apiUrl = resource.url.startsWith('http') 
-            ? resource.url 
-            : `${baseUrl}${resource.url}`;
-          const apiResponse = await fetch(apiUrl);
-          if (apiResponse.ok) {
-            const apiData = await apiResponse.json();
-            allApis.push({
-              name: resource.name,
-              data: apiData
-            });
+          updateLoading();
+          const configResponse = await fetch(`${baseUrl}/v3/api-docs/swagger-config`);
+          if (configResponse.ok) {
+            const config = await configResponse.json();
+            if (config && config.urls && config.urls.length > 0) {
+              updateLoading();
+              // 获取所有 API 组的文档
+              for (let i = 0; i < config.urls.length; i++) {
+                const urlItem = config.urls[i];
+                updateLoading();
+                try {
+                  let apiUrl;
+                  if (urlItem.url.startsWith('http')) {
+                    // 完整的 HTTP URL
+                    apiUrl = urlItem.url;
+                  } else if (urlItem.url.startsWith('/')) {
+                    // 绝对路径，直接使用 origin + url
+                    apiUrl = currentUrl.origin + urlItem.url;
+                  } else {
+                    // 相对路径，使用 baseUrl + url
+                    apiUrl = `${baseUrl}/${urlItem.url}`;
+                  }
+                  const apiResponse = await fetch(apiUrl);
+                  if (apiResponse.ok) {
+                    const apiData = await apiResponse.json();
+                    allApis.push({
+                      name: urlItem.name,
+                      data: apiData,
+                      isV3: true
+                    });
+                  }
+                } catch (error) {
+                  console.error(`获取 ${urlItem.name} 的API文档失败:`, error);
+                }
+              }
+            }
+          } else {
+            console.log('v3 swagger-config 返回状态码:', configResponse.status);
           }
         } catch (error) {
-          console.error(`获取 ${resource.name} 的API文档失败:`, error);
+          console.error('v3 版本获取失败:', error);
         }
       }
 
       if (allApis.length === 0) {
-        throw new Error('无法获取任何API文档');
+        throw new Error('无法获取任何 Swagger 资源（v2 和 v3 都失败）');
       }
 
-      // 3. 替换页面内容
+      // 4. 解析和渲染数据
+      updateLoading();
+      // 使用 setTimeout 让浏览器有机会更新 UI
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
       replacePageContent(allApis, baseUrl);
 
     } catch (error) {
@@ -72,25 +130,51 @@
   }
 
   // 显示加载提示
-  function showLoading() {
-    const loader = document.createElement('div');
-    loader.id = 'swagger-loader';
-    loader.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(15, 23, 42, 0.95);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10000;
-      color: #f8fafc;
-      font-size: 18px;
+  function showLoading(message) {
+    let loader = document.getElementById('swagger-loader');
+    if (!loader) {
+      loader = document.createElement('div');
+      loader.id = 'swagger-loader';
+      loader.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.95);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        color: #f8fafc;
+        font-size: 18px;
+      `;
+      document.body.appendChild(loader);
+    }
+    
+    loader.innerHTML = `
+      <div style="margin-bottom: 20px;">
+        <div style="width: 50px; height: 50px; border: 4px solid rgba(255, 255, 255, 0.2); border-top-color: #60a5fa; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      </div>
+      <div style="font-size: 16px; color: #cbd5e1;">${message}</div>
+      <style>
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
     `;
-    loader.textContent = '正在加载 Swagger 文档...';
-    document.body.appendChild(loader);
+  }
+
+  // 更新加载提示
+  function updateLoading(message) {
+    const loader = document.getElementById('swagger-loader');
+    if (loader) {
+      const messageDiv = loader.querySelector('div:last-child');
+      if (messageDiv) {
+        messageDiv.textContent = message;
+      }
+    }
   }
 
   // 隐藏加载提示
@@ -773,6 +857,32 @@
             color: var(--text-primary);
             border-color: var(--accent-blue);
         }
+        .refresh-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+        .refresh-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--accent-green);
+        }
+        .refresh-btn.refreshing {
+            animation: rotate 1s linear infinite;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
         .settings-modal {
             display: none;
             position: fixed;
@@ -1220,6 +1330,7 @@
                 <div class="favorites-dropdown" id="favoritesDropdown"></div>
             </div>
             <button class="settings-btn" id="settingsBtn" title="设置">⚙️</button>
+            <button class="refresh-btn" id="refreshBtn" title="刷新接口数据">🔄</button>
         </div>
         <div class="settings-modal" id="settingsModal">
             <div class="settings-modal-content">
@@ -1344,6 +1455,8 @@
   
   // 渲染Swagger内容
   function renderSwaggerContent(allApis, baseUrl) {
+    updateLoading();
+    
     // 解析所有API数据
     const apiMap = new Map(); // tag -> endpoints[]
     const tagDescriptionMap = new Map(); // tag -> description
@@ -1359,8 +1472,26 @@
       });
     });
     
+    // 计算总接口数，用于显示进度
+    let totalEndpoints = 0;
     allApis.forEach(apiGroup => {
       const paths = apiGroup.data.paths || {};
+      Object.keys(paths).forEach(path => {
+        totalEndpoints += Object.keys(paths[path]).length;
+      });
+    });
+    
+    let processedEndpoints = 0;
+    
+    allApis.forEach(apiGroup => {
+      const paths = apiGroup.data.paths || {};
+      const isV3 = apiGroup.isV3 || false;
+      
+      // 获取 definitions 或 components.schemas
+      const definitions = isV3 
+        ? (apiGroup.data.components?.schemas || {})
+        : (apiGroup.data.definitions || {});
+      
       Object.keys(paths).forEach(path => {
         const methods = paths[path];
         Object.keys(methods).forEach(method => {
@@ -1372,29 +1503,85 @@
             apiMap.set(tag, []);
           }
           
+          // 处理 v3 的 requestBody 和 v2 的 parameters
+          let parameters = endpoint.parameters || [];
+          let bodyParam = null;
+          
+          if (isV3 && endpoint.requestBody) {
+            // v3 使用 requestBody
+            const content = endpoint.requestBody.content || {};
+            const jsonContent = content['application/json'] || content['*/*'] || Object.values(content)[0];
+            if (jsonContent && jsonContent.schema) {
+              bodyParam = {
+                in: 'body',
+                schema: jsonContent.schema,
+                required: endpoint.requestBody.required || false
+              };
+            }
+          } else {
+            // v2 使用 parameters 中的 body
+            bodyParam = parameters.find(p => p.in === 'body');
+          }
+          
+          // 处理 v3 的响应结构
+          let responses = endpoint.responses || {};
+          if (isV3 && responses) {
+            // v3 的响应在 content 中
+            const processedResponses = {};
+            Object.keys(responses).forEach(statusCode => {
+              const response = responses[statusCode];
+              if (response.content) {
+                const jsonContent = response.content['application/json'] 
+                  || response.content['*/*'] 
+                  || Object.values(response.content)[0];
+                if (jsonContent && jsonContent.schema) {
+                  processedResponses[statusCode] = {
+                    description: response.description || '',
+                    schema: jsonContent.schema
+                  };
+                } else {
+                  processedResponses[statusCode] = response;
+                }
+              } else {
+                processedResponses[statusCode] = response;
+              }
+            });
+            responses = processedResponses;
+          }
+          
           const endpointData = {
             path: path,
             method: method.toUpperCase(),
             summary: endpoint.summary || '',
             description: endpoint.description || '',
-            parameters: endpoint.parameters || [],
-            responses: endpoint.responses || {},
+            parameters: parameters,
+            bodyParam: bodyParam,
+            responses: responses,
             operationId: endpoint.operationId || '',
             tag: tag,
             apiGroup: apiGroup.name,
-            definitions: apiGroup.data.definitions || {} // 添加definitions引用
+            definitions: definitions, // 统一使用 definitions 字段名，但内容可能是 components.schemas
+            isV3: isV3
           };
           
           apiMap.get(tag).push(endpointData);
           allEndpoints.push(endpointData);
+          
+          processedEndpoints++;
+          // 每处理 50 个接口更新一次进度
+          if (processedEndpoints % 50 === 0) {
+            updateLoading();
+          }
         });
       });
     });
     
+    updateLoading();
     // 渲染侧边栏
     renderSidebar(apiMap, tagDescriptionMap);
     
-    // 渲染内容区
+    updateLoading();
+    // 渲染内容区（分批渲染，避免阻塞）
     renderContent(allApis, apiMap, baseUrl);
     
     // 初始化搜索功能
@@ -1505,23 +1692,101 @@
     const host = allApis[0]?.data?.host || '';
     const basePath = allApis[0]?.data?.basePath || '';
     
-    // 构建完整的baseUrl
+    // 构建完整的baseUrl（只用于显示，不用于复制）
+    // 注意：复制按钮会从 localStorage 获取 baseUrl，所以这里不需要传递
     const fullBaseUrl = host ? basePath : baseUrl;
     
-    let html = ``;
+    // 但是，如果 baseUrl 包含域名（http:// 或 https://），则只使用路径部分
+    // 因为复制按钮应该只复制路径，而不是完整 URL
+    let displayBaseUrl = fullBaseUrl;
+    try {
+      if (fullBaseUrl && (fullBaseUrl.startsWith('http://') || fullBaseUrl.startsWith('https://'))) {
+        const urlObj = new URL(fullBaseUrl);
+        displayBaseUrl = urlObj.pathname;
+      }
+    } catch (e) {
+      // 如果解析失败，使用原始值
+      displayBaseUrl = fullBaseUrl;
+    }
     
-    // 按tag分组渲染
+    // 清空内容区
+    contentArea.innerHTML = '';
+    
+    // 收集所有需要渲染的 section
+    const sectionsToRender = [];
     apiMap.forEach((endpoints, tag) => {
-      html += `
-        <div class="api-section" data-tag="${escapeHtml(tag)}">
-          <h2 class="section-title">${escapeHtml(tag)}</h2>
-          ${endpoints.map(ep => renderApiCard(ep, fullBaseUrl)).join('')}
-        </div>
-      `;
+      sectionsToRender.push({ tag, endpoints });
     });
     
-    contentArea.innerHTML = html;
+    // 分批渲染，避免阻塞 UI
+    const batchSize = 5; // 每批渲染 5 个 section
+    let currentIndex = 0;
+    const fragment = document.createDocumentFragment();
     
+    function renderBatch() {
+      const endIndex = Math.min(currentIndex + batchSize, sectionsToRender.length);
+      
+      for (let i = currentIndex; i < endIndex; i++) {
+        const { tag, endpoints } = sectionsToRender[i];
+        
+        // 创建 section 元素
+        const section = document.createElement('div');
+        section.className = 'api-section';
+        section.setAttribute('data-tag', tag);
+        
+        // 创建标题
+        const title = document.createElement('h2');
+        title.className = 'section-title';
+        title.textContent = tag;
+        section.appendChild(title);
+        
+        // 使用 DOM 操作逐个添加卡片
+        endpoints.forEach(ep => {
+          const cardHtml = renderApiCard(ep, displayBaseUrl);
+          
+          // 使用临时容器解析 HTML
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = cardHtml;
+          
+          // 将解析后的元素添加到 section
+          while (tempDiv.firstChild) {
+            section.appendChild(tempDiv.firstChild);
+          }
+        });
+        
+        // 添加到 DocumentFragment
+        fragment.appendChild(section);
+      }
+      
+      currentIndex = endIndex;
+      
+      // 如果还有未处理的 section，继续处理
+      if (currentIndex < sectionsToRender.length) {
+        // 每批渲染后更新一次进度
+        if (currentIndex % (batchSize * 2) === 0) {
+          updateLoading();
+        }
+        // 使用 requestAnimationFrame 继续渲染，避免阻塞 UI
+        requestAnimationFrame(renderBatch);
+      } else {
+        // 所有 section 都已添加到 fragment，一次性添加到 DOM
+        contentArea.appendChild(fragment);
+        updateLoading();
+        // 绑定事件
+        bindContentEvents(contentArea);
+        // 隐藏加载提示
+        setTimeout(() => {
+          hideLoading();
+        }, 100);
+      }
+    }
+    
+    // 开始第一批渲染
+    renderBatch();
+  }
+  
+  // 绑定内容区的事件（提取为独立函数，避免重复绑定）
+  function bindContentEvents(contentArea) {
     // 绑定卡片点击事件
     contentArea.querySelectorAll('.api-card').forEach(card => {
       card.addEventListener('click', function(e) {
@@ -1530,8 +1795,26 @@
         if (e.target.closest('.favorite-icon')) return; // 不阻止收藏按钮的点击
         if (e.target.closest('.share-icon')) return; // 不阻止分享按钮的点击
         
+        const isExpanding = !this.classList.contains('expanded');
+        
         // 切换展开/收起状态
         this.classList.toggle('expanded');
+        
+        // 如果正在展开，懒加载详情内容
+        if (isExpanding) {
+          const apiDetails = this.querySelector('.api-details');
+          if (apiDetails) {
+            apiDetails.style.display = 'block';
+            // 立即渲染详情，不使用 setTimeout，避免需要点击两次
+            renderApiCardDetails(this);
+          }
+        } else {
+          // 收起时隐藏详情
+          const apiDetails = this.querySelector('.api-details');
+          if (apiDetails) {
+            apiDetails.style.display = 'none';
+          }
+        }
         
         // 更新左侧菜单选中状态
         const path = this.getAttribute('data-path');
@@ -1552,26 +1835,34 @@
         const path = this.getAttribute('data-path');
         if (!path) return;
         
-        // 获取保存的baseUrl
-        function getBaseUrl() {
-          try {
-            return localStorage.getItem('swagger-baseUrl') || '';
-          } catch (e) {
-            return '';
-          }
-        }
-        
-        // 构建完整的路径（加上baseUrl）
+        // 如果 path 已经是完整的 URL（包含 http:// 或 https://），直接使用
         let fullPath = path;
-        const baseUrl = getBaseUrl().trim();
-        if (baseUrl) {
-          const normalizedBaseUrl = baseUrl.replace(/\/+$/, ''); // 移除末尾的斜杠
-          const normalizedPath = path.replace(/^\/+/, '/'); // 确保路径以单个斜杠开头
-          // 如果 baseUrl 只是斜杠，则只使用路径
-          if (normalizedBaseUrl && normalizedBaseUrl !== '/') {
-            fullPath = normalizedBaseUrl + normalizedPath;
+        if (path.startsWith('http://') || path.startsWith('https://')) {
+          // 已经是完整 URL，直接复制
+        } else {
+          // 获取保存的baseUrl
+          function getBaseUrl() {
+            try {
+              return localStorage.getItem('swagger-baseUrl') || '';
+            } catch (e) {
+              return '';
+            }
+          }
+          
+          // 构建完整的路径（加上baseUrl）
+          const baseUrl = getBaseUrl().trim();
+          if (baseUrl) {
+            const normalizedBaseUrl = baseUrl.replace(/\/+$/, ''); // 移除末尾的斜杠
+            const normalizedPath = path.replace(/^\/+/, '/'); // 确保路径以单个斜杠开头
+            // 如果 baseUrl 只是斜杠，则只使用路径
+            if (normalizedBaseUrl && normalizedBaseUrl !== '/') {
+              fullPath = normalizedBaseUrl + normalizedPath;
+            } else {
+              fullPath = normalizedPath;
+            }
           } else {
-            fullPath = normalizedPath;
+            // 没有设置 baseUrl，只复制路径
+            fullPath = path;
           }
         }
         
@@ -1707,8 +1998,8 @@
       });
     });
     
-    // 降级复制方案（枚举）
-    function fallbackCopyEnum(text, btn) {
+    // 降级复制方案（枚举）- 暴露到全局作用域，供懒加载的详情使用
+    window.fallbackCopyEnum = function(text, btn) {
       const textArea = document.createElement('textarea');
       textArea.value = text;
       textArea.style.position = 'fixed';
@@ -1734,13 +2025,29 @@
       }
       
       document.body.removeChild(textArea);
-    }
+    };
     
-    // 初始化收藏功能
-    initFavorites();
+    // 注意：initFavorites、initSettings、initRefresh 已经在 initInteractions 中初始化
+    // 这里不需要重复初始化，避免重复绑定事件
+  }
+  
+  // 初始化刷新功能
+  function initRefresh() {
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (!refreshBtn) return;
     
-    // 初始化设置功能
-    initSettings();
+    refreshBtn.addEventListener('click', function() {
+      // 添加旋转动画
+      refreshBtn.classList.add('refreshing');
+      
+      // 重新加载页面数据
+      enhanceSwaggerPage().finally(() => {
+        // 移除旋转动画
+        setTimeout(() => {
+          refreshBtn.classList.remove('refreshing');
+        }, 500);
+      });
+    });
   }
   
   // 初始化设置功能
@@ -1992,8 +2299,13 @@
       });
     }
     
-    // 绑定收藏图标点击事件
-    document.addEventListener('click', function(e) {
+    // 绑定收藏图标点击事件（使用命名函数，避免重复绑定）
+    // 先移除旧的事件监听器（如果存在）
+    if (window.favoriteIconClickHandler) {
+      document.removeEventListener('click', window.favoriteIconClickHandler);
+    }
+    
+    window.favoriteIconClickHandler = function(e) {
       if (e.target.closest('.favorite-icon')) {
         const icon = e.target.closest('.favorite-icon');
         const path = icon.getAttribute('data-path');
@@ -2010,8 +2322,17 @@
           addFavorite(path, method, tag, summary);
         }
       }
-      
-      // 处理分享按钮点击
+    };
+    
+    document.addEventListener('click', window.favoriteIconClickHandler);
+    
+    // 处理分享按钮点击
+    // 先移除旧的事件监听器（如果存在）
+    if (window.shareIconClickHandler) {
+      document.removeEventListener('click', window.shareIconClickHandler);
+    }
+    
+    window.shareIconClickHandler = function(e) {
       if (e.target.closest('.share-icon')) {
         const icon = e.target.closest('.share-icon');
         const path = icon.getAttribute('data-path');
@@ -2044,7 +2365,9 @@
           fallbackCopyShare(shareUrl, icon);
         }
       }
-    });
+    };
+    
+    document.addEventListener('click', window.shareIconClickHandler);
     
     // 降级复制方案（分享链接）
     function fallbackCopyShare(text, btn) {
@@ -2099,103 +2422,270 @@
     updateFavoritesDropdown();
   }
   
-  // 渲染API卡片
+  // 渲染API卡片（优化：懒加载详情部分）
   function renderApiCard(endpoint, baseUrl) {
-    const params = endpoint.parameters || [];
-    const bodyParam = params.find(p => p.in === 'body');
-    
     // 转义路径中的特殊字符用于ID
     const regex = new RegExp('[.*+?^$()|[\\]\\\\]', 'g');
     const safePathId = endpoint.path.replace(regex, '-');
     const cardId = `api-${safePathId}-${endpoint.method}`;
     
-    // 构建完整的接口地址，避免双斜杠
-    let fullPath = endpoint.path;
-    if (baseUrl) {
-      const normalizedBaseUrl = baseUrl.replace(/\/+$/, ''); // 移除末尾的斜杠
-      const normalizedPath = endpoint.path.replace(/^\/+/, '/'); // 确保路径以单个斜杠开头
-      // 如果 baseUrl 只是斜杠，则只使用路径
-      if (normalizedBaseUrl && normalizedBaseUrl !== '/') {
-        fullPath = normalizedBaseUrl + normalizedPath;
-      } else {
-        fullPath = normalizedPath;
-      }
-    }
+    // 注意：这里不再构建 fullPath，因为复制按钮会在点击时根据 baseUrl 设置来拼接
+    // 这样可以避免 v3 版本中 baseUrl 可能包含域名的问题
+    
+    // 将 endpoint 数据存储在 data 属性中，用于懒加载
+    const endpointData = JSON.stringify({
+      path: endpoint.path,
+      method: endpoint.method,
+      tag: endpoint.tag || '',
+      summary: endpoint.summary || '',
+      description: endpoint.description || '',
+      parameters: endpoint.parameters || [],
+      bodyParam: endpoint.bodyParam || null,
+      responses: endpoint.responses || {},
+      definitions: endpoint.definitions || {},
+      operationId: endpoint.operationId || '',
+      apiGroup: endpoint.apiGroup || ''
+    });
     
     return `
-      <div class="api-card" id="${cardId}" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}">
+      <div class="api-card" id="${cardId}" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" data-endpoint='${escapeHtml(endpointData)}'>
         <div class="api-card-header">
           <span class="http-method method-${endpoint.method.toLowerCase()}">${endpoint.method}</span>
           <span class="api-path">
             ${escapeHtml(endpoint.path)}
-            <span class="copy-path-btn" data-path="${escapeHtml(fullPath)}" title="复制接口地址">📄</span>
+            <span class="copy-path-btn" data-path="${escapeHtml(endpoint.path)}" title="复制接口地址">📄</span>
             <span class="api-summary">${escapeHtml(endpoint.summary || '')}</span>
           </span>
           <span class="favorite-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" title="收藏接口">⭐</span>
           <span class="share-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" data-operation-id="${escapeHtml(endpoint.operationId || '')}" data-api-group="${escapeHtml(endpoint.apiGroup || '')}" title="分享接口">🔗</span>
           <span class="expand-icon">▼</span>
         </div>
-        <div class="api-details">
+        <div class="api-details" style="display: none;">
           <div class="details-content">
-            ${endpoint.description ? `
-              <div class="detail-section">
-                <div class="detail-label">接口描述</div>
-                <p style="color: var(--text-secondary); line-height: 1.6;">${escapeHtml(endpoint.description)}</p>
-              </div>
-            ` : ''}
-            
-            ${params.length > 0 ? `
-              <div class="detail-section">
-                <div class="detail-label">请求参数</div>
-                ${renderRequestParams(params, bodyParam, endpoint.definitions, cardId)}
-              </div>
-            ` : ''}
-            
-            ${Object.keys(endpoint.responses).length > 0 ? `
-              <div class="detail-section">
-                <div class="detail-label">响应示例</div>
-                ${renderResponseExample(endpoint.responses, endpoint.definitions, cardId)}
-              </div>
-            ` : ''}
+            <!-- 详情内容将在展开时懒加载 -->
+            <div class="loading-placeholder" style="padding: 20px; text-align: center; color: var(--text-secondary);">加载中...</div>
           </div>
         </div>
       </div>
     `;
   }
   
+  // 懒加载渲染 API 卡片详情
+  function renderApiCardDetails(cardElement) {
+    const detailsContent = cardElement.querySelector('.details-content');
+    if (!detailsContent) return;
+    
+    // 检查是否已经渲染过（检查是否有 detail-section 且不是 loading-placeholder）
+    const existingSection = detailsContent.querySelector('.detail-section');
+    const hasPlaceholder = detailsContent.querySelector('.loading-placeholder');
+    
+    // 如果已经有内容且不是占位符，说明已经渲染过，直接返回
+    if (existingSection && !hasPlaceholder) {
+      return;
+    }
+    
+    // 从 data 属性获取 endpoint 数据
+    const endpointDataStr = cardElement.getAttribute('data-endpoint');
+    if (!endpointDataStr) return;
+    
+    try {
+      const endpoint = JSON.parse(endpointDataStr);
+      const cardId = cardElement.id;
+      const params = endpoint.parameters || [];
+      const bodyParam = endpoint.bodyParam || null;
+      
+      // 清空占位符
+      detailsContent.innerHTML = '';
+      
+      // 渲染详情内容
+      if (endpoint.description) {
+        detailsContent.innerHTML += `
+          <div class="detail-section">
+            <div class="detail-label">接口描述</div>
+            <p style="color: var(--text-secondary); line-height: 1.6;">${escapeHtml(endpoint.description)}</p>
+          </div>
+        `;
+      }
+      
+      if (params.length > 0 || bodyParam) {
+        detailsContent.innerHTML += `
+          <div class="detail-section">
+            <div class="detail-label">请求参数</div>
+            ${renderRequestParams(params, bodyParam, endpoint.definitions, cardId)}
+          </div>
+        `;
+      }
+      
+      if (Object.keys(endpoint.responses).length > 0) {
+        detailsContent.innerHTML += `
+          <div class="detail-section">
+            <div class="detail-label">响应示例</div>
+            ${renderResponseExample(endpoint.responses, endpoint.definitions, cardId)}
+          </div>
+        `;
+      }
+      
+      // 绑定标签页切换事件
+      detailsContent.querySelectorAll('.code-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+          const tabName = this.getAttribute('data-tab');
+          const codeBlock = this.closest('.code-block');
+          if (!codeBlock) return;
+          
+          // 切换标签
+          codeBlock.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+          codeBlock.querySelectorAll('.code-content').forEach(c => c.classList.remove('active'));
+          
+          this.classList.add('active');
+          // 使用 getElementById 而不是 querySelector，避免路径中的斜杠导致选择器错误
+          const targetContent = document.getElementById(tabName);
+          if (targetContent) {
+            targetContent.classList.add('active');
+          }
+        });
+      });
+      
+      // 绑定协议表格的展开/收起事件
+      detailsContent.querySelectorAll('.param-expand-icon').forEach(icon => {
+        icon.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const expandId = this.getAttribute('data-expand-id');
+          const nestedContent = document.getElementById(expandId);
+          if (nestedContent) {
+            const isExpanded = nestedContent.style.display !== 'none';
+            nestedContent.style.display = isExpanded ? 'none' : 'block';
+            this.textContent = isExpanded ? '▶' : '▼';
+          }
+        });
+      });
+      
+      // 绑定枚举复制按钮事件（懒加载的详情需要单独绑定）
+      detailsContent.querySelectorAll('.enum-copy-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          
+          const enumData = this.getAttribute('data-enum');
+          if (!enumData) return;
+          
+          // 解码HTML实体
+          const textArea = document.createElement('textarea');
+          textArea.innerHTML = enumData;
+          const decodedText = textArea.value;
+          
+          // 复制到剪贴板
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(decodedText).then(() => {
+              const originalText = this.textContent;
+              this.textContent = '✓';
+              this.classList.add('copied');
+              
+              setTimeout(() => {
+                this.textContent = originalText;
+                this.classList.remove('copied');
+              }, 2000);
+            }).catch(err => {
+              console.error('复制失败:', err);
+              if (window.fallbackCopyEnum) {
+                window.fallbackCopyEnum(decodedText, this);
+              }
+            });
+          } else {
+            if (window.fallbackCopyEnum) {
+              window.fallbackCopyEnum(decodedText, this);
+            }
+          }
+        });
+      });
+    } catch (error) {
+      console.error('渲染卡片详情失败:', error);
+      detailsContent.innerHTML = '<div style="padding: 20px; color: var(--text-error);">加载失败</div>';
+    }
+  }
+  
   // 检测描述中是否包含枚举值
   function hasEnumInDescription(description) {
-    if (!description || description.includes('yyyy-MM-dd HH:mm:ss') || description.includes('yyyy-mm-dd hh:mm:ss')) return false;
-    // 匹配格式：描述 枚举1:值1 枚举2:值2 或 枚举1：值1 枚举2：值2
-    // 至少需要两个枚举项（用空格分隔，每个枚举项包含冒号）
-    // 或者只有一个枚举项但前面有描述
-    const enumPattern = /[\w\u4e00-\u9fa5]+[：:][\w\u4e00-\u9fa5\d]+/;
-    const matches = description.match(new RegExp(enumPattern, 'g'));
-    return matches && matches.length >= 1;
+    // 严格类型检查
+    if (!description) return false;
+    if (typeof description !== 'string') return false;
+    
+    // 限制字符串长度，避免处理过长的字符串
+    if (description.length > 1000) return false;
+    
+    // 排除日期格式
+    if (description.includes('yyyy-MM-dd') || description.includes('yyyy-mm-dd')) return false;
+    
+    try {
+      // 匹配格式：描述 枚举1:值1 枚举2:值2 或 枚举1：值1 枚举2：值2
+      // 至少需要两个枚举项（用空格分隔，每个枚举项包含冒号）
+      // 或者只有一个枚举项但前面有描述
+      // 使用更安全的正则表达式，避免回溯问题
+      const enumPattern = /[\w\u4e00-\u9fa5]+[：:][\w\u4e00-\u9fa5\d]+/;
+      
+      // 使用简单的字符串搜索，避免复杂的正则表达式回溯问题
+      // 检查是否包含 "xxx:yyy" 或 "xxx：yyy" 格式
+      // 使用 indexOf 而不是 match，更安全
+      const hasColon = description.includes(':') || description.includes('：');
+      if (!hasColon) return false;
+      
+      // 简单检查：至少找到一个有效的 "字符:字符" 模式
+      // 限制检查范围，避免处理过长字符串
+      const checkLength = Math.min(description.length, 200);
+      const checkStr = description.substring(0, checkLength);
+      
+      // 使用简单的正则表达式，但限制匹配次数
+      const simplePattern = /[\w\u4e00-\u9fa5]+[：:][\w\u4e00-\u9fa5\d]+/;
+      return simplePattern.test(checkStr);
+    } catch (error) {
+      console.error('hasEnumInDescription error:', error);
+      return false;
+    }
   }
   
   // 解析枚举值
   function parseEnumValues(description) {
-    if (!description) return null;
+    if (!description || typeof description !== 'string') return null;
     
-    // 匹配所有 "value:label" 或 "value：label" 格式的枚举项
-    // 根据用户示例：function:函数 tag:标签，格式是 value:label
-    // value和label可以是中文、英文、数字
-    const enumPattern = /([\w\u4e00-\u9fa5\d]+)[：:]([\w\u4e00-\u9fa5\d]+)/g;
-    const matches = [...description.matchAll(enumPattern)];
-    
-    if (matches.length === 0) return null;
-    
-    const result = [];
-    for (const match of matches) {
-      const value = match[1]; // 冒号前面的是value
-      const label = match[2]; // 冒号后面的是label
-      // 判断value是否为纯数字
-      const numValue = /^\d+$/.test(value) ? parseInt(value, 10) : value;
-      result.push({ label, value: numValue });
+    // 限制字符串长度，避免处理过长的字符串
+    if (description.length > 500) {
+      description = description.substring(0, 500);
     }
     
-    return result.length > 0 ? result : null;
+    try {
+      // 匹配所有 "value:label" 或 "value：label" 格式的枚举项
+      // 根据用户示例：function:函数 tag:标签，格式是 value:label
+      // value和label可以是中文、英文、数字
+      const enumPattern = /([\w\u4e00-\u9fa5\d]+)[：:]([\w\u4e00-\u9fa5\d]+)/g;
+      
+      // 使用更安全的方式处理匹配，避免使用展开运算符导致堆栈溢出
+      const result = [];
+      let match;
+      let matchCount = 0;
+      const maxMatches = 50; // 最多匹配50次，避免过多匹配
+      
+      // 重置正则表达式的 lastIndex，确保从头开始匹配
+      enumPattern.lastIndex = 0;
+      
+      while ((match = enumPattern.exec(description)) !== null && matchCount < maxMatches) {
+        const value = match[1]; // 冒号前面的是value
+        const label = match[2]; // 冒号后面的是label
+        
+        // 判断value是否为纯数字
+        const numValue = /^\d+$/.test(value) ? parseInt(value, 10) : value;
+        result.push({ label, value: numValue });
+        
+        matchCount++;
+        
+        // 防止无限循环：如果匹配位置没有前进，跳出循环
+        if (enumPattern.lastIndex === match.index) {
+          enumPattern.lastIndex++;
+        }
+      }
+      
+      return result.length > 0 ? result : null;
+    } catch (error) {
+      console.error('parseEnumValues error:', error);
+      return null;
+    }
   }
   
   // 转换枚举值为前端格式
@@ -2212,6 +2702,16 @@
   
   // 渲染枚举复制按钮
   function renderEnumCopyButton(description) {
+    // 确保 description 是字符串类型
+    if (!description || typeof description !== 'string') {
+      return '';
+    }
+    
+    // 限制字符串长度
+    if (description.length > 1000) {
+      return '';
+    }
+    
     if (!hasEnumInDescription(description)) {
       return '';
     }
@@ -2331,9 +2831,13 @@
   function formatJsonExample(schema, definitions, visited = new Set()) {
     if (!schema) return '{}';
     
-    // 处理$ref引用
+    // 处理$ref引用（兼容 v2 和 v3）
     if (schema.$ref) {
-      const refName = schema.$ref.split('/').pop();
+      // v2: #/definitions/ModelName
+      // v3: #/components/schemas/ModelName
+      const refPath = schema.$ref.split('/');
+      const refName = refPath[refPath.length - 1];
+      
       if (visited.has(refName)) {
         return '{}'; // 避免循环引用
       }
@@ -2354,9 +2858,13 @@
   function buildExampleValue(schema, definitions, visited = new Set()) {
     if (!schema) return {};
     
-    // 处理$ref引用
+    // 处理$ref引用（兼容 v2 和 v3）
     if (schema.$ref) {
-      const refName = schema.$ref.split('/').pop();
+      // v2: #/definitions/ModelName
+      // v3: #/components/schemas/ModelName
+      const refPath = schema.$ref.split('/');
+      const refName = refPath[refPath.length - 1];
+      
       if (visited.has(refName)) {
         return {}; // 避免循环引用
       }
@@ -2432,11 +2940,21 @@
   
   // 渲染协议（字段、类型、描述）
   function renderSchemaProtocol(schema, definitions, visited = new Set(), level = 0) {
+    // 限制递归深度，避免堆栈溢出
+    const MAX_DEPTH = 10;
+    if (level > MAX_DEPTH) {
+      return '<div style="color: var(--text-secondary); padding: 8px;">[递归深度超过限制]</div>';
+    }
+    
     if (!schema) return '<div>无定义</div>';
     
-    // 处理$ref引用
+    // 处理$ref引用（兼容 v2 和 v3）
     if (schema.$ref) {
-      const refName = schema.$ref.split('/').pop();
+      // v2: #/definitions/ModelName
+      // v3: #/components/schemas/ModelName
+      const refPath = schema.$ref.split('/');
+      const refName = refPath[refPath.length - 1];
+      
       if (visited.has(refName)) {
         return '<div style="color: var(--text-secondary); padding: 8px;">[循环引用: ' + escapeHtml(refName) + ']</div>';
       }
@@ -2471,11 +2989,15 @@
         return '<div style="color: var(--text-secondary);">空对象</div>';
       }
       
+      // 限制处理的属性数量，避免处理过多属性导致性能问题
+      const maxProps = 100;
+      const propKeys = Object.keys(props).slice(0, maxProps);
+      
       let html = '<table class="params-table">';
       html += '<thead><tr><th>字段名</th><th>描述</th><th>类型</th><th>必填</th></tr></thead>';
       html += '<tbody>';
       
-      Object.keys(props).forEach(key => {
+      propKeys.forEach(key => {
         const prop = props[key];
         const isRequired = required.includes(key);
         const propType = getSchemaType(prop, definitions);
@@ -2486,20 +3008,27 @@
         let hasNested = false;
         
         if (prop.type === 'object' && prop.properties) {
-          nestedHtml = renderSchemaProtocol(prop, definitions, newVisited, level + 1);
-          hasNested = true;
+          // 检查是否已经访问过相同的对象结构（通过检查是否有相同的属性键）
+          // 使用简单的启发式方法：如果属性数量相同且前几个键相同，可能是循环引用
+          const propKeys = Object.keys(prop.properties || {});
+          if (propKeys.length > 0 && level < MAX_DEPTH) {
+            nestedHtml = renderSchemaProtocol(prop, definitions, newVisited, level + 1);
+            hasNested = true;
+          }
         } else if (prop.type === 'array' && prop.items) {
           if (prop.items.type === 'object' || prop.items.properties || prop.items.$ref) {
-            nestedHtml = `
-              ${renderSchemaProtocol(prop.items, definitions, newVisited, level + 1)}
-            `;
-            hasNested = true;
+            if (level < MAX_DEPTH) {
+              nestedHtml = `
+                ${renderSchemaProtocol(prop.items, definitions, newVisited, level + 1)}
+              `;
+              hasNested = true;
+            }
           }
         } else if (prop.$ref) {
           const refName = prop.$ref.split('/').pop();
           if (!newVisited.has(refName)) {
             const refSchema = definitions[refName];
-            if (refSchema) {
+            if (refSchema && level < MAX_DEPTH) {
               nestedHtml = renderSchemaProtocol(refSchema, definitions, newVisited, level + 1);
               hasNested = true;
             }
@@ -2522,7 +3051,7 @@
             </td>
             <td class="param-desc">
               <span class="param-desc-text">${escapeHtml(prop.description || '')}</span>
-              ${renderEnumCopyButton(prop.description || '')}
+              ${renderEnumCopyButton(typeof prop.description === 'string' ? prop.description : '')}
             </td>
             <td>${escapeHtml(propType)}</td>
             <td>${isRequired ? '<span>● 必填</span>' : '选填'}</td>
@@ -2696,6 +3225,17 @@
       const cardId = `api-${safePathId}-${method}`;
       const card = document.getElementById(cardId);
       if (card) {
+        // 如果卡片未展开，先展开并加载详情
+        if (!card.classList.contains('expanded')) {
+          card.classList.add('expanded');
+          const apiDetails = card.querySelector('.api-details');
+          if (apiDetails) {
+            apiDetails.style.display = 'block';
+            // 立即渲染详情
+            renderApiCardDetails(card);
+          }
+        }
+        
         // 获取滚动容器（content-area）
         const contentArea = document.getElementById('contentArea');
         if (!contentArea) return;
@@ -2737,7 +3277,16 @@
         
         requestAnimationFrame(animateScroll);
         
-        card.classList.add('expanded');
+        // 如果卡片未展开，展开并加载详情
+        if (!card.classList.contains('expanded')) {
+          card.classList.add('expanded');
+          const apiDetails = card.querySelector('.api-details');
+          if (apiDetails) {
+            apiDetails.style.display = 'block';
+            // 立即渲染详情
+            renderApiCardDetails(card);
+          }
+        }
         
         // 更新左侧菜单状态
         updateSidebarState(path, method, tag);
