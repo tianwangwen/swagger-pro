@@ -3362,6 +3362,11 @@
         sidebar.classList.toggle('collapsed');
       });
     }
+    
+    // 初始化收藏、设置和刷新功能
+    initFavorites();
+    initSettings();
+    initRefresh();
   }
 
   // 检测Swagger页面并自动激活（可选）
