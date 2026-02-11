@@ -169,11 +169,12 @@
   // 更新加载提示
   function updateLoading(message) {
     const loader = document.getElementById('swagger-loader');
-    if (loader) {
-      const messageDiv = loader.querySelector('div:last-child');
-      if (messageDiv) {
-        messageDiv.textContent = message;
-      }
+    if (!loader) return;
+    // 如果未传 message，则保持原文案不变，避免显示 "undefined"
+    if (typeof message !== 'string' || !message) return;
+    const messageDiv = loader.querySelector('div:last-child');
+    if (messageDiv) {
+      messageDiv.textContent = message;
     }
   }
 
@@ -218,8 +219,10 @@
     
     // 执行渲染
     setTimeout(() => {
+      // 在这里只启动渲染，不隐藏 loading，
+      // 等右侧内容真正渲染完成后再在 renderContent 中调用 hideLoading，
+      // 避免 content-area 长时间空白。
       executeRender(allApis, baseUrl);
-      hideLoading();
     }, 50);
   }
 
@@ -624,6 +627,25 @@
             background: var(--bg-primary);
             height: calc(100vh - 70px);
             overflow-y: auto;
+        }
+        .content-loading {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            gap: 12px;
+        }
+        .content-loading-spinner {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 3px solid rgba(148, 163, 184, 0.4);
+            border-top-color: #e5e7eb;
+            animation: spin 0.8s linear infinite;
         }
         .content-header {
             margin-bottom: 32px;
@@ -1400,56 +1422,93 @@
   // 解析分享链接并跳转到对应接口
   function handleShareUrl(allEndpoints) {
     const hash = window.location.hash;
-    if (!hash || hash.length <= 2) {
+    if (!hash || hash.length <= 1) {
       return; // 没有hash或hash为空
     }
-    
-    // 解析hash格式，支持两种：
-    // 1. 新格式：#/apiGroupName/tagName/methodName
-    // 2. 旧格式：#/tagName/methodName
-    let hashMatch = hash.match(/^#\/([^/]+)\/([^/]+)\/(.+)$/);
-    let tag, operationId, apiGroupName;
-    
-    if (hashMatch) {
-      // 新格式：包含apiGroupName
-      apiGroupName = decodeURIComponent(hashMatch[1]);
-      tag = decodeURIComponent(hashMatch[2]);
-      operationId = hashMatch[3];
-    } else {
-      // 旧格式：只有tagName和operationId
-      hashMatch = hash.match(/^#\/([^/]+)\/(.+)$/);
-      if (!hashMatch) {
-        return; // hash格式不正确
-      }
-      tag = decodeURIComponent(hashMatch[1]);
-      operationId = hashMatch[2];
-    }
-    
-    // 查找对应的endpoint
+
+    const currentUrl = new URL(window.location.href);
+    const pathname = currentUrl.pathname || '';
+    const isDocHtml = pathname.endsWith('/doc.html') || pathname.endsWith('doc.html');
+
+    // 去掉开头的 #，按 / 拆分
+    const hashStr = hash.startsWith('#') ? hash.slice(1) : hash;
+    const segments = hashStr.split('/').filter(Boolean);
+
+    if (segments.length === 0) return;
+
+    let apiGroupName;
+    let tag;
+    let operationId;
     let endpoint;
-    if (apiGroupName) {
-      // 如果提供了apiGroupName，优先匹配apiGroupName
-      endpoint = allEndpoints.find(ep => 
-        ep.apiGroup === apiGroupName && 
-        ep.tag === tag && 
-        ep.operationId === operationId
-      );
-    }
-    
-    // 如果没找到或没有apiGroupName，则只匹配tag和operationId
-    if (!endpoint) {
-      endpoint = allEndpoints.find(ep => 
+
+    if (isDocHtml) {
+      // 第三方框架 (doc.html)，我们生成的是三段：
+      // #/apiGroupName/tagName/operationId
+      // 但有些框架会在初始化时把最后一段裁掉，变成：
+      // #/apiGroupName/tagName
+      if (segments.length >= 3) {
+        apiGroupName = decodeURIComponent(segments[0]);
+        tag = decodeURIComponent(segments[1]);
+        operationId = decodeURIComponent(segments.slice(2).join('/'));
+
+        endpoint = allEndpoints.find(ep =>
+          ep.apiGroup === apiGroupName &&
+          ep.tag === tag &&
+          ep.operationId === operationId
+        );
+      } else if (segments.length === 2) {
+        // 只有 apiGroupName 和 tagName，operationId 已经丢失
+        // 这种场景下尽量退化为 “定位到该分组下的第一个接口”
+        apiGroupName = decodeURIComponent(segments[0]);
+        tag = decodeURIComponent(segments[1]);
+
+        endpoint = allEndpoints.find(ep =>
+          ep.apiGroup === apiGroupName &&
+          ep.tag === tag
+        );
+      } else {
+        return;
+      }
+    } else {
+      // 原生 swagger-ui.html 等，使用两段：
+      // #/tagName/operationId
+      if (segments.length < 2) {
+        return;
+      }
+
+      tag = decodeURIComponent(segments[0]);
+      // 其余部分都认为是 operationId，避免意外的额外斜杠导致匹配失败
+      operationId = decodeURIComponent(segments.slice(1).join('/'));
+
+      endpoint = allEndpoints.find(ep =>
         ep.tag === tag && ep.operationId === operationId
       );
     }
-    
+
     if (endpoint) {
-      // 延迟跳转，确保页面已渲染完成
-      setTimeout(() => {
-        if (window.scrollToEndpoint) {
+      // 为了兼容大文档 + 分批渲染的情况，这里增加重试机制：
+      // 等待对应卡片真正渲染到 DOM 后再滚动，最多重试一段时间。
+      const regex = new RegExp('[.*+?^$()|[\\]\\\\]', 'g');
+      const safePathId = endpoint.path.replace(regex, '-');
+      const cardId = `api-${safePathId}-${endpoint.method}`;
+      
+      let attempts = 0;
+      const maxAttempts = 50;     // 最多重试 50 次
+      const interval = 200;       // 每次间隔 200ms，最多约 10 秒
+      
+      function tryScrollToEndpoint() {
+        attempts++;
+        const card = document.getElementById(cardId);
+        
+        if (card && window.scrollToEndpoint) {
           window.scrollToEndpoint(endpoint.path, endpoint.method, endpoint.tag);
+        } else if (attempts < maxAttempts) {
+          setTimeout(tryScrollToEndpoint, interval);
         }
-      }, 300);
+      }
+      
+      // 先等页面初始渲染一小段时间，再开始轮询
+      setTimeout(tryScrollToEndpoint, 100);
     }
   }
   
@@ -1457,143 +1516,157 @@
   function renderSwaggerContent(allApis, baseUrl) {
     updateLoading();
     
-    // 解析所有API数据
-    const apiMap = new Map(); // tag -> endpoints[]
-    const tagDescriptionMap = new Map(); // tag -> description
-    const allEndpoints = [];
+    // 右侧区域先显示一个局部 loading，避免在解析数据时长时间空白
+    const contentArea = document.getElementById('contentArea');
+    if (contentArea) {
+      contentArea.innerHTML = `
+        <div class="content-loading">
+          <div class="content-loading-spinner"></div>
+          <div>正在解析并渲染接口列表，请稍候...</div>
+        </div>
+      `;
+    }
     
-    // 首先收集所有tags的description
-    allApis.forEach(apiGroup => {
-      const tags = apiGroup.data.tags || [];
-      tags.forEach(tag => {
-        if (tag.name && tag.description) {
-          tagDescriptionMap.set(tag.name, tag.description);
-        }
-      });
-    });
-    
-    // 计算总接口数，用于显示进度
-    let totalEndpoints = 0;
-    allApis.forEach(apiGroup => {
-      const paths = apiGroup.data.paths || {};
-      Object.keys(paths).forEach(path => {
-        totalEndpoints += Object.keys(paths[path]).length;
-      });
-    });
-    
-    let processedEndpoints = 0;
-    
-    allApis.forEach(apiGroup => {
-      const paths = apiGroup.data.paths || {};
-      const isV3 = apiGroup.isV3 || false;
+    // 使用异步切片，让上面的 loading 有机会先渲染到屏幕上
+    setTimeout(() => {
+      // 解析所有API数据
+      const apiMap = new Map(); // tag -> endpoints[]
+      const tagDescriptionMap = new Map(); // tag -> description
+      const allEndpoints = [];
       
-      // 获取 definitions 或 components.schemas
-      const definitions = isV3 
-        ? (apiGroup.data.components?.schemas || {})
-        : (apiGroup.data.definitions || {});
-      
-      Object.keys(paths).forEach(path => {
-        const methods = paths[path];
-        Object.keys(methods).forEach(method => {
-          const endpoint = methods[method];
-          const tags = endpoint.tags || ['未分类'];
-          const tag = tags[0];
-          
-          if (!apiMap.has(tag)) {
-            apiMap.set(tag, []);
-          }
-          
-          // 处理 v3 的 requestBody 和 v2 的 parameters
-          let parameters = endpoint.parameters || [];
-          let bodyParam = null;
-          
-          if (isV3 && endpoint.requestBody) {
-            // v3 使用 requestBody
-            const content = endpoint.requestBody.content || {};
-            const jsonContent = content['application/json'] || content['*/*'] || Object.values(content)[0];
-            if (jsonContent && jsonContent.schema) {
-              bodyParam = {
-                in: 'body',
-                schema: jsonContent.schema,
-                required: endpoint.requestBody.required || false
-              };
-            }
-          } else {
-            // v2 使用 parameters 中的 body
-            bodyParam = parameters.find(p => p.in === 'body');
-          }
-          
-          // 处理 v3 的响应结构
-          let responses = endpoint.responses || {};
-          if (isV3 && responses) {
-            // v3 的响应在 content 中
-            const processedResponses = {};
-            Object.keys(responses).forEach(statusCode => {
-              const response = responses[statusCode];
-              if (response.content) {
-                const jsonContent = response.content['application/json'] 
-                  || response.content['*/*'] 
-                  || Object.values(response.content)[0];
-                if (jsonContent && jsonContent.schema) {
-                  processedResponses[statusCode] = {
-                    description: response.description || '',
-                    schema: jsonContent.schema
-                  };
-                } else {
-                  processedResponses[statusCode] = response;
-                }
-              } else {
-                processedResponses[statusCode] = response;
-              }
-            });
-            responses = processedResponses;
-          }
-          
-          const endpointData = {
-            path: path,
-            method: method.toUpperCase(),
-            summary: endpoint.summary || '',
-            description: endpoint.description || '',
-            parameters: parameters,
-            bodyParam: bodyParam,
-            responses: responses,
-            operationId: endpoint.operationId || '',
-            tag: tag,
-            apiGroup: apiGroup.name,
-            definitions: definitions, // 统一使用 definitions 字段名，但内容可能是 components.schemas
-            isV3: isV3
-          };
-          
-          apiMap.get(tag).push(endpointData);
-          allEndpoints.push(endpointData);
-          
-          processedEndpoints++;
-          // 每处理 50 个接口更新一次进度
-          if (processedEndpoints % 50 === 0) {
-            updateLoading();
+      // 首先收集所有tags的description
+      allApis.forEach(apiGroup => {
+        const tags = apiGroup.data.tags || [];
+        tags.forEach(tag => {
+          if (tag.name && tag.description) {
+            tagDescriptionMap.set(tag.name, tag.description);
           }
         });
       });
-    });
-    
-    updateLoading();
-    // 渲染侧边栏
-    renderSidebar(apiMap, tagDescriptionMap);
-    
-    updateLoading();
-    // 渲染内容区（分批渲染，避免阻塞）
-    renderContent(allApis, apiMap, baseUrl);
-    
-    // 初始化搜索功能
-    initSearch(allEndpoints);
-    
-    // 初始化交互功能
-    initInteractions();
-    
-    // 处理分享链接（延迟执行，确保页面已渲染）
-    setTimeout(() => {
-      handleShareUrl(allEndpoints);
-    }, 1000);
+      
+      // 计算总接口数，用于显示进度
+      let totalEndpoints = 0;
+      allApis.forEach(apiGroup => {
+        const paths = apiGroup.data.paths || {};
+        Object.keys(paths).forEach(path => {
+          totalEndpoints += Object.keys(paths[path]).length;
+        });
+      });
+      
+      let processedEndpoints = 0;
+      
+      allApis.forEach(apiGroup => {
+        const paths = apiGroup.data.paths || {};
+        const isV3 = apiGroup.isV3 || false;
+        
+        // 获取 definitions 或 components.schemas
+        const definitions = isV3 
+          ? (apiGroup.data.components?.schemas || {})
+          : (apiGroup.data.definitions || {});
+        
+        Object.keys(paths).forEach(path => {
+          const methods = paths[path];
+          Object.keys(methods).forEach(method => {
+            const endpoint = methods[method];
+            const tags = endpoint.tags || ['未分类'];
+            const tag = tags[0];
+            
+            if (!apiMap.has(tag)) {
+              apiMap.set(tag, []);
+            }
+            
+            // 处理 v3 的 requestBody 和 v2 的 parameters
+            let parameters = endpoint.parameters || [];
+            let bodyParam = null;
+            
+            if (isV3 && endpoint.requestBody) {
+              // v3 使用 requestBody
+              const content = endpoint.requestBody.content || {};
+              const jsonContent = content['application/json'] || content['*/*'] || Object.values(content)[0];
+              if (jsonContent && jsonContent.schema) {
+                bodyParam = {
+                  in: 'body',
+                  schema: jsonContent.schema,
+                  required: endpoint.requestBody.required || false
+                };
+              }
+            } else {
+              // v2 使用 parameters 中的 body
+              bodyParam = parameters.find(p => p.in === 'body');
+            }
+            
+            // 处理 v3 的响应结构
+            let responses = endpoint.responses || {};
+            if (isV3 && responses) {
+              // v3 的响应在 content 中
+              const processedResponses = {};
+              Object.keys(responses).forEach(statusCode => {
+                const response = responses[statusCode];
+                if (response.content) {
+                  const jsonContent = response.content['application/json'] 
+                    || response.content['*/*'] 
+                    || Object.values(response.content)[0];
+                  if (jsonContent && jsonContent.schema) {
+                    processedResponses[statusCode] = {
+                      description: response.description || '',
+                      schema: jsonContent.schema
+                    };
+                  } else {
+                    processedResponses[statusCode] = response;
+                  }
+                } else {
+                  processedResponses[statusCode] = response;
+                }
+              });
+              responses = processedResponses;
+            }
+            
+            const endpointData = {
+              path: path,
+              method: method.toUpperCase(),
+              summary: endpoint.summary || '',
+              description: endpoint.description || '',
+              parameters: parameters,
+              bodyParam: bodyParam,
+              responses: responses,
+              operationId: endpoint.operationId || '',
+              tag: tag,
+              apiGroup: apiGroup.name,
+              definitions: definitions, // 统一使用 definitions 字段名，但内容可能是 components.schemas
+              isV3: isV3
+            };
+            
+            apiMap.get(tag).push(endpointData);
+            allEndpoints.push(endpointData);
+            
+            processedEndpoints++;
+            // 每处理 50 个接口更新一次进度
+            if (processedEndpoints % 50 === 0) {
+              updateLoading();
+            }
+          });
+        });
+      });
+      
+      updateLoading();
+      // 渲染侧边栏
+      renderSidebar(apiMap, tagDescriptionMap);
+      
+      updateLoading();
+      // 渲染内容区（分批渲染，避免阻塞）
+      renderContent(allApis, apiMap, baseUrl);
+      
+      // 初始化搜索功能
+      initSearch(allEndpoints);
+      
+      // 初始化交互功能
+      initInteractions();
+      
+      // 处理分享链接（延迟执行，确保页面已渲染）
+      setTimeout(() => {
+        handleShareUrl(allEndpoints);
+      }, 1000);
+    }, 0);
   }
 
   // 渲染侧边栏
