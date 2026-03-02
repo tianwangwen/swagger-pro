@@ -18,9 +18,6 @@
     },
     "default_title": "Swagger Pro"
   },
-  "permissions": [
-    "storage"
-  ],
   "host_permissions": [
     "<all_urls>"
   ],
