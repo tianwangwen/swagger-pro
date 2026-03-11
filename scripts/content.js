@@ -166,6 +166,69 @@
     `;
   }
 
+  // 轻量提示（Toast）
+  function showToast(message, duration = 2000) {
+    if (!message) return;
+    
+    let container = document.getElementById('swagger-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'swagger-toast-container';
+      container.style.cssText = `
+        position: fixed;
+        right: 24px;
+        top: 90px;
+        z-index: 10001;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-end;
+        pointer-events: none;
+      `;
+      document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = `
+      max-width: 320px;
+      background: rgba(15, 23, 42, 0.95);
+      color: #e5e7eb;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+      pointer-events: auto;
+      opacity: 0;
+      transform: translateY(-6px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    `;
+    
+    container.appendChild(toast);
+    
+    // 直接显示，保证在任何环境下都能看到
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+    
+    const remove = () => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-6px)';
+      setTimeout(() => {
+        if (toast.parentNode === container) {
+          container.removeChild(toast);
+        }
+      }, 200);
+    };
+    
+    const timer = setTimeout(remove, duration);
+    
+    toast.addEventListener('click', () => {
+      clearTimeout(timer);
+      remove();
+    });
+  }
+
   // 更新加载提示
   function updateLoading(message) {
     const loader = document.getElementById('swagger-loader');
@@ -455,6 +518,8 @@
         }
         .sidebar {
             width: 300px;
+            min-width: 200px;
+            max-width: 80vw;
             background: var(--bg-secondary);
             border-right: 1px solid var(--border-color);
             display: flex;
@@ -462,9 +527,54 @@
             transition: width 0.3s ease;
             height: calc(100vh - 70px);
             overflow-y: auto;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .sidebar.sidebar-resizing {
+            transition: none;
         }
         .sidebar.collapsed {
             width: 60px;
+            min-width: 60px;
+        }
+        .sidebar.collapsed .sidebar-resize-handle {
+            display: none;
+        }
+        .sidebar-resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            cursor: col-resize;
+            z-index: 10;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .sidebar-resize-handle::after {
+            content: '';
+            position: absolute;
+            right: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2px;
+            height: 40px;
+            background: var(--border-color);
+            border-radius: 1px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .sidebar-resize-handle:hover::after,
+        .sidebar-resize-handle.sidebar-resize-active::after {
+            opacity: 1;
+            background: var(--accent-blue);
+        }
+        body.sidebar-resizing {
+            cursor: col-resize;
+            user-select: none;
+        }
+        body.sidebar-resizing * {
+            cursor: col-resize !important;
         }
         .sidebar-header {
             padding: 20px;
@@ -524,6 +634,7 @@
             border-bottom: 2px solid var(--text-secondary);
             transform: rotate(-45deg);
             transition: transform 0.2s, border-color 0.2s;
+            flex-shrink: 0;
         }
         .controller-group.expanded .controller-icon {
             transform: rotate(45deg);
@@ -537,9 +648,12 @@
             font-weight: 600;
             color: var(--text-primary);
             display: flex;
-            flex-direction: column;
+            align-items: center;
             gap: 4px;
             flex: 1;
+            overflow: hidden;
+            text-overflow:ellipsis;
+            white-space: nowrap;
         }
         .controller-name-main {
             font-size: 14px;
@@ -614,11 +728,34 @@
             text-transform: uppercase;
         }
         .endpoint-path {
-            color: var(--text-secondary);
+            color: rgba(255, 255, 255, 0.8);
             font-family: monospace;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            flex-shrink: 0;
+            max-width: 100%;
+        }
+        .endpoint-path-summary-wrap {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow: hidden;
+        }
+        .endpoint-path-summary-wrap .endpoint-path {
+            flex: 0 1 auto;
+            min-width: 0;
+        }
+        .endpoint-summary {
+            color: #94a3b8;
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
         }
         .content-area {
             flex: 1;
@@ -743,6 +880,9 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .copy-path-btn {
             width: 20px;
@@ -1381,6 +1521,7 @@
     return `
         <aside class="sidebar" id="sidebar">
             <nav class="nav-tree" id="navTree"></nav>
+            <div class="sidebar-resize-handle" id="sidebarResizeHandle" title="拖拽调整宽度"></div>
         </aside>
         <main class="content-area" id="contentArea"></main>
     `;
@@ -1713,7 +1854,10 @@
               return `
               <div class="endpoint-item ${favorited ? 'favorited' : ''}" data-path="${escapeHtml(ep.path)}" data-method="${ep.method}">
                 <span class="endpoint-method method-${ep.method.toLowerCase()}">${ep.method}</span>
-                <span class="endpoint-path" title="${escapeHtml(ep.path)}">${escapeHtml(ep.path)}</span>
+                <span class="endpoint-path-summary-wrap">
+                  <span class="endpoint-path" title="${escapeHtml(ep.path)}">${escapeHtml(ep.path)}</span>
+                  ${ep.summary ? `<span class="endpoint-summary" title="${escapeHtml(ep.summary)}">${escapeHtml(ep.summary)}</span>` : ''}
+                </span>
               </div>
             `;
             }).join('')}
@@ -1901,6 +2045,36 @@
     });
     
     // 绑定复制按钮事件
+    // 复制按钮旁边的轻量提示
+    function showCopyInlineTip(btn, message) {
+      if (!btn || !message) return;
+      const parent = btn.parentElement || btn;
+      if (!parent) return;
+      
+      let tip = parent.querySelector('.copy-inline-tip');
+      if (tip && tip.parentNode === parent) {
+        parent.removeChild(tip);
+      }
+      
+      tip = document.createElement('span');
+      tip.className = 'copy-inline-tip';
+      tip.textContent = message;
+      tip.style.cssText = `
+        margin-left: 6px;
+        font-size: 12px;
+        color: #22c55e;
+        white-space: nowrap;
+      `;
+      
+      parent.appendChild(tip);
+      
+      setTimeout(() => {
+        if (tip && tip.parentNode === parent) {
+          parent.removeChild(tip);
+        }
+      }, 2000);
+    }
+    
     contentArea.querySelectorAll('.copy-path-btn').forEach(btn => {
       btn.addEventListener('click', function(e) {
         e.stopPropagation(); // 阻止事件冒泡，避免触发卡片展开/收起
@@ -1946,6 +2120,10 @@
             const originalText = this.textContent;
             this.textContent = '✓';
             this.classList.add('copied');
+            showCopyInlineTip(this, '已复制接口地址');
+            if (typeof showToast === 'function') {
+              showToast('已复制接口地址');
+            }
             
             setTimeout(() => {
               this.textContent = originalText;
@@ -1953,6 +2131,9 @@
             }, 2000);
           }).catch(err => {
             console.error('复制失败:', err);
+            if (typeof showToast === 'function') {
+              showToast('复制失败，已尝试兼容方案');
+            }
             // 降级方案：使用传统方法
             fallbackCopy(fullPath, this);
           });
@@ -1980,6 +2161,10 @@
         const originalText = btn.textContent;
         btn.textContent = '✓';
         btn.classList.add('copied');
+        showCopyInlineTip(btn, '已复制接口地址');
+        if (typeof showToast === 'function') {
+          showToast('已复制接口地址');
+        }
         
         setTimeout(() => {
           btn.textContent = originalText;
@@ -1987,7 +2172,11 @@
         }, 2000);
       } catch (err) {
         console.error('复制失败:', err);
-        alert('复制失败，请手动复制');
+        if (typeof showToast === 'function') {
+          showToast('复制失败，请手动复制');
+        } else {
+          alert('复制失败，请手动复制');
+        }
       }
       
       document.body.removeChild(textArea);
@@ -2529,7 +2718,7 @@
             <span class="copy-path-btn" data-path="${escapeHtml(endpoint.path)}" title="复制接口地址">📄</span>
             <span class="api-summary">${escapeHtml(endpoint.summary || '')}</span>
           </span>
-          <span class="favorite-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" title="收藏接口">⭐</span>
+          <span class="favorite-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" title="收藏接口">☆</span>
           <span class="share-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" data-operation-id="${escapeHtml(endpoint.operationId || '')}" data-api-group="${escapeHtml(endpoint.apiGroup || '')}" title="分享接口">🔗</span>
           <span class="expand-icon">▼</span>
         </div>
@@ -3429,10 +3618,67 @@
     
     // 切换侧边栏
     const collapseBtn = document.getElementById('collapseBtn');
-    if (collapseBtn) {
+    const sidebar = document.getElementById('sidebar');
+    if (collapseBtn && sidebar) {
       collapseBtn.addEventListener('click', function() {
-        const sidebar = document.getElementById('sidebar');
+        if (sidebar.classList.contains('collapsed')) {
+          // 展开：恢复保存的宽度
+          const saved = localStorage.getItem('swagger-pro-sidebar-width');
+          const w = saved ? Math.min(800, Math.max(200, parseInt(saved, 10))) : 300;
+          sidebar.style.width = w + 'px';
+        } else {
+          // 折叠前保存当前宽度
+          const w = sidebar.offsetWidth;
+          if (w >= 200) localStorage.setItem('swagger-pro-sidebar-width', String(w));
+        }
         sidebar.classList.toggle('collapsed');
+      });
+    }
+
+    // 侧边栏拖拽调整宽度
+    const resizeHandle = document.getElementById('sidebarResizeHandle');
+    if (resizeHandle && sidebar) {
+      const SIDEBAR_MIN = 200;
+      const SIDEBAR_MAX = Math.min(800, Math.floor(window.innerWidth * 0.8));
+
+      // 恢复上次保存的宽度（仅当未折叠时）
+      if (!sidebar.classList.contains('collapsed')) {
+        const saved = localStorage.getItem('swagger-pro-sidebar-width');
+        if (saved) {
+          const w = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, parseInt(saved, 10)));
+          sidebar.style.width = w + 'px';
+        }
+      }
+
+      resizeHandle.addEventListener('mousedown', function(e) {
+        if (e.button !== 0 || sidebar.classList.contains('collapsed')) return;
+        e.preventDefault();
+        resizeHandle.classList.add('sidebar-resize-active');
+        sidebar.classList.add('sidebar-resizing');
+        document.body.classList.add('sidebar-resizing');
+
+        const startX = e.clientX;
+        const startWidth = sidebar.offsetWidth;
+
+        function onMouseMove(e) {
+          const dx = e.clientX - startX;
+          let newWidth = startWidth + dx;
+          newWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, newWidth));
+          sidebar.style.width = newWidth + 'px';
+        }
+
+        function onMouseUp() {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          resizeHandle.classList.remove('sidebar-resize-active');
+          sidebar.classList.remove('sidebar-resizing');
+          document.body.classList.remove('sidebar-resizing');
+          const w = sidebar.offsetWidth;
+          if (w >= SIDEBAR_MIN) localStorage.setItem('swagger-pro-sidebar-width', String(w));
+        }
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
       });
     }
     
