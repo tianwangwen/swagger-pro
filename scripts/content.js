@@ -247,6 +247,9 @@
     if (loader) loader.remove();
   }
 
+  // 存储每个卡片对应的完整接口数据，避免将大 JSON 塞进 DOM 属性
+  const endpointMap = new Map();
+
   // 替换页面内容
   function replacePageContent(allApis, baseUrl) {
     // 创建标记
@@ -1991,6 +1994,16 @@
         updateLoading();
         // 绑定事件
         bindContentEvents(contentArea);
+        // 内容渲染完成后，再初始化收藏、设置和刷新，保证元素已存在
+        if (typeof initFavorites === 'function') {
+          initFavorites();
+        }
+        if (typeof initSettings === 'function') {
+          initSettings();
+        }
+        if (typeof initRefresh === 'function') {
+          initRefresh();
+        }
         // 隐藏加载提示
         setTimeout(() => {
           hideLoading();
@@ -2045,36 +2058,6 @@
     });
     
     // 绑定复制按钮事件
-    // 复制按钮旁边的轻量提示
-    function showCopyInlineTip(btn, message) {
-      if (!btn || !message) return;
-      const parent = btn.parentElement || btn;
-      if (!parent) return;
-      
-      let tip = parent.querySelector('.copy-inline-tip');
-      if (tip && tip.parentNode === parent) {
-        parent.removeChild(tip);
-      }
-      
-      tip = document.createElement('span');
-      tip.className = 'copy-inline-tip';
-      tip.textContent = message;
-      tip.style.cssText = `
-        margin-left: 6px;
-        font-size: 12px;
-        color: #22c55e;
-        white-space: nowrap;
-      `;
-      
-      parent.appendChild(tip);
-      
-      setTimeout(() => {
-        if (tip && tip.parentNode === parent) {
-          parent.removeChild(tip);
-        }
-      }, 2000);
-    }
-    
     contentArea.querySelectorAll('.copy-path-btn').forEach(btn => {
       btn.addEventListener('click', function(e) {
         e.stopPropagation(); // 阻止事件冒泡，避免触发卡片展开/收起
@@ -2120,7 +2103,6 @@
             const originalText = this.textContent;
             this.textContent = '✓';
             this.classList.add('copied');
-            showCopyInlineTip(this, '已复制接口地址');
             if (typeof showToast === 'function') {
               showToast('已复制接口地址');
             }
@@ -2161,7 +2143,6 @@
         const originalText = btn.textContent;
         btn.textContent = '✓';
         btn.classList.add('copied');
-        showCopyInlineTip(btn, '已复制接口地址');
         if (typeof showToast === 'function') {
           showToast('已复制接口地址');
         }
@@ -2289,8 +2270,7 @@
       document.body.removeChild(textArea);
     };
     
-    // 注意：initFavorites、initSettings、initRefresh 已经在 initInteractions 中初始化
-    // 这里不需要重复初始化，避免重复绑定事件
+    // 收藏、设置、刷新在内容渲染完成后统一初始化，避免重复绑定事件
   }
   
   // 初始化刷新功能
@@ -2432,6 +2412,9 @@
         saveFavorites(favorites);
         updateFavoriteIcons();
         updateFavoritesDropdown();
+        if (typeof showToast === 'function') {
+          showToast('已收藏接口');
+        }
       }
     }
     
@@ -2442,6 +2425,9 @@
       saveFavorites(filtered);
       updateFavoriteIcons();
       updateFavoritesDropdown();
+      if (typeof showToast === 'function') {
+        showToast('已取消收藏');
+      }
     }
     
     // 更新收藏图标状态
@@ -2684,7 +2670,7 @@
     updateFavoritesDropdown();
   }
   
-  // 渲染API卡片（优化：懒加载详情部分）
+  // 渲染API卡片（详情部分仍懒加载，但数据保存在内存 Map 中）
   function renderApiCard(endpoint, baseUrl) {
     // 转义路径中的特殊字符用于ID
     const regex = new RegExp('[.*+?^$()|[\\]\\\\]', 'g');
@@ -2694,8 +2680,8 @@
     // 注意：这里不再构建 fullPath，因为复制按钮会在点击时根据 baseUrl 设置来拼接
     // 这样可以避免 v3 版本中 baseUrl 可能包含域名的问题
     
-    // 将 endpoint 数据存储在 data 属性中，用于懒加载
-    const endpointData = JSON.stringify({
+    // 将 endpoint 数据存储在内存 Map 中，避免在 DOM 属性里塞大 JSON
+    endpointMap.set(cardId, {
       path: endpoint.path,
       method: endpoint.method,
       tag: endpoint.tag || '',
@@ -2706,11 +2692,12 @@
       responses: endpoint.responses || {},
       definitions: endpoint.definitions || {},
       operationId: endpoint.operationId || '',
-      apiGroup: endpoint.apiGroup || ''
+      apiGroup: endpoint.apiGroup || '',
+      isV3: endpoint.isV3 || false
     });
     
     return `
-      <div class="api-card" id="${cardId}" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" data-endpoint='${escapeHtml(endpointData)}'>
+      <div class="api-card" id="${cardId}" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}">
         <div class="api-card-header">
           <span class="http-method method-${endpoint.method.toLowerCase()}">${endpoint.method}</span>
           <span class="api-path">
@@ -2746,13 +2733,12 @@
       return;
     }
     
-    // 从 data 属性获取 endpoint 数据
-    const endpointDataStr = cardElement.getAttribute('data-endpoint');
-    if (!endpointDataStr) return;
+    // 从内存 Map 中获取 endpoint 数据，避免从 DOM 属性中反序列化大 JSON
+    const cardId = cardElement.id;
+    const endpoint = endpointMap.get(cardId);
+    if (!endpoint) return;
     
     try {
-      const endpoint = JSON.parse(endpointDataStr);
-      const cardId = cardElement.id;
       const params = endpoint.parameters || [];
       const bodyParam = endpoint.bodyParam || null;
       
@@ -3682,10 +3668,6 @@
       });
     }
     
-    // 初始化收藏、设置和刷新功能
-    initFavorites();
-    initSettings();
-    initRefresh();
   }
 
   // 检测Swagger页面并自动激活（可选）
