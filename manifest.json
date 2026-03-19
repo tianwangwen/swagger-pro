@@ -1,7 +1,7 @@
 {
   "name": "Swagger Pro",
   "description": "Enhanced Swagger with global search, quick copy, bookmarking and sharing—boosting usability and efficiency",
-  "version": "1.0",
+  "version": "1.2",
   "manifest_version": 3,
   "icons": {
     "16": "images/icon-16.png",

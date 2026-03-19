@@ -39,10 +39,11 @@
             for (let i = 0; i < resources.length; i++) {
               const resource = resources[i];
               updateLoading();
+              const url = resource.url || resource.location
               try {
-                const apiUrl = resource.url.startsWith('http') 
-                  ? resource.url 
-                  : `${baseUrl}${resource.url}`;
+                const apiUrl = url.startsWith('http') 
+                  ? url 
+                  : `${baseUrl}${url}`;
                 const apiResponse = await fetch(apiUrl);
                 if (apiResponse.ok) {
                   const apiData = await apiResponse.json();
