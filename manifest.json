@@ -24,7 +24,21 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["scripts/content.js"],
+      "js": [
+        "scripts/content-state.js",
+        "scripts/content-ui.js",
+        "scripts/content-styles.js",
+        "scripts/content-templates.js",
+        "scripts/content-schema.js",
+        "scripts/content-api-cards.js",
+        "scripts/content-share.js",
+        "scripts/content-events.js",
+        "scripts/content-render.js",
+        "scripts/content-page.js",
+        "scripts/content-fetch.js",
+        "scripts/content-features.js",
+        "scripts/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
