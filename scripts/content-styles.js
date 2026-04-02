@@ -25,6 +25,31 @@ function getStylesContent() {
           --hover-bg: #2563eb;
           --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
           --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+          --sp-tooltip-bg: #303133;
+          --sp-tooltip-color: #ffffff;
+      }
+      .sp-tooltip-popper {
+          position: fixed;
+          z-index: 2147483646;
+          max-width: min(320px, calc(100vw - 16px));
+          padding: 8px 12px;
+          background: var(--sp-tooltip-bg);
+          color: var(--sp-tooltip-color);
+          font-size: 12px;
+          line-height: 1.5;
+          font-weight: 400;
+          border-radius: 4px;
+          box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.24);
+          pointer-events: none;
+          opacity: 0;
+          visibility: hidden;
+          transition: opacity 0.1s ease, visibility 0.1s ease;
+          word-break: break-word;
+          text-align: left;
+      }
+      .sp-tooltip-popper--visible {
+          opacity: 1;
+          visibility: visible;
       }
       body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -530,7 +555,7 @@ function getStylesContent() {
           border: 1px solid var(--border-color);
           border-radius: 16px;
           margin-bottom: 16px;
-          overflow: hidden;
+          overflow: visible;
           transition: all 0.3s ease;
       }
       .api-card:hover {
@@ -568,11 +593,17 @@ function getStylesContent() {
           display: flex;
           align-items: center;
           gap: 8px;
+          min-width: 0;
+          overflow: visible;
+      }
+      .api-path-text {
+          min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
       }
-      .copy-path-btn {
+      .copy-path-btn,
+      .copy-protocol-btn {
           width: 20px;
           height: 20px;
           display: flex;
@@ -586,12 +617,14 @@ function getStylesContent() {
           font-size: 14px;
           flex-shrink: 0;
       }
-      .copy-path-btn:hover {
+      .copy-path-btn:hover,
+      .copy-protocol-btn:hover {
           opacity: 1;
           background: var(--bg-tertiary);
           color: var(--accent-blue);
       }
-      .copy-path-btn.copied {
+      .copy-path-btn.copied,
+      .copy-protocol-btn.copied {
           color: var(--accent-green);
           opacity: 1;
       }
@@ -599,6 +632,11 @@ function getStylesContent() {
           color: var(--text-secondary);
           font-size: 14px;
           margin-right: 20px;
+          min-width: 0;
+          flex: 0 1 auto;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
       }
       .favorite-icon {
           width: 20px;

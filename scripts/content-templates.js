@@ -7,6 +7,12 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+/** 用于 data-tooltip 等 HTML 属性值 */
+function escapeAttr(text) {
+  return escapeHtml(text == null ? '' : String(text))
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 function getHeaderHTMLContent(apiInfo, baseUrl) {
   const logoUrl = chrome.runtime.getURL('images/logo.png');
   return `
@@ -20,16 +26,16 @@ function getHeaderHTMLContent(apiInfo, baseUrl) {
       <div class="search-container">
           <span class="search-icon">🔍</span>
           <input type="text" class="search-box" placeholder="搜索接口地址、描述或参数... (Ctrl + K)" id="globalSearch">
-          <span class="search-clear-btn" id="searchClearBtn" title="清空搜索">✕</span>
+          <span class="search-clear-btn" id="searchClearBtn" data-tooltip="清空搜索">✕</span>
           <div class="search-results" id="searchResults"></div>
       </div>
       <div class="header-actions">
           <div class="favorites-container">
-              <button class="favorites-btn" id="favoritesBtn" title="查看收藏的接口">⭐</button>
+              <button class="favorites-btn" id="favoritesBtn" data-tooltip="收藏">⭐</button>
               <div class="favorites-dropdown" id="favoritesDropdown"></div>
           </div>
-          <button class="settings-btn" id="settingsBtn" title="设置">⚙️</button>
-          <button class="refresh-btn" id="refreshBtn" title="刷新接口数据">🔄</button>
+          <button class="settings-btn" id="settingsBtn" data-tooltip="设置">⚙️</button>
+          <button class="refresh-btn" id="refreshBtn" data-tooltip="刷新">🔄</button>
       </div>
       <div class="settings-modal" id="settingsModal">
           <div class="settings-modal-content">
@@ -56,7 +62,7 @@ function getMainContainerHTMLContent() {
   return `
       <aside class="sidebar" id="sidebar">
           <nav class="nav-tree" id="navTree"></nav>
-          <div class="sidebar-resize-handle" id="sidebarResizeHandle" title="拖拽调整宽度"></div>
+          <div class="sidebar-resize-handle" id="sidebarResizeHandle" data-tooltip="拖拽调整侧栏宽度"></div>
       </aside>
       <main class="content-area" id="contentArea"></main>
   `;

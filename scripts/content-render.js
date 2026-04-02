@@ -205,8 +205,8 @@ function renderSidebar(apiMap, tagDescriptionMap) {
             <div class="endpoint-item ${favorited ? 'favorited' : ''}" data-path="${escapeHtml(ep.path)}" data-method="${ep.method}">
               <span class="endpoint-method method-${ep.method.toLowerCase()}">${ep.method}</span>
               <span class="endpoint-path-summary-wrap">
-                <span class="endpoint-path" title="${escapeHtml(ep.path)}">${escapeHtml(ep.path)}</span>
-                ${ep.summary ? `<span class="endpoint-summary" title="${escapeHtml(ep.summary)}">${escapeHtml(ep.summary)}</span>` : ''}
+                <span class="endpoint-path">${escapeHtml(ep.path)}</span>
+                ${ep.summary ? `<span class="endpoint-summary">${escapeHtml(ep.summary)}</span>` : ''}
               </span>
             </div>
           `;

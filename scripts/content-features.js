@@ -244,7 +244,7 @@ function initFavorites() {
           <span class="favorite-item-method method-${fav.method.toLowerCase()}">${fav.method}</span>
           <span class="favorite-item-path">${escapeHtml(fav.path)}</span>
           <span class="favorite-item-desc">${escapeHtml(fav.summary || '')}</span>
-          <span class="favorite-item-remove" title="取消收藏">×</span>
+          <span class="favorite-item-remove" data-tooltip="从收藏中移除">×</span>
         </div>
       `;
     }).join('');

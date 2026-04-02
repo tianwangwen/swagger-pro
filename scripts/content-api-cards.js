@@ -32,13 +32,14 @@ function renderApiCard(endpoint, baseUrl) {
       <div class="api-card-header">
         <span class="http-method method-${endpoint.method.toLowerCase()}">${endpoint.method}</span>
         <span class="api-path">
-          ${escapeHtml(endpoint.path)}
-          <span class="copy-path-btn" data-path="${escapeHtml(endpoint.path)}" title="复制接口地址">📄</span>
+          <span class="api-path-text">${escapeHtml(endpoint.path)}</span>
+          <span class="copy-path-btn" data-path="${escapeHtml(endpoint.path)}" data-tooltip="复制接口地址">📄</span>
+          <span class="copy-protocol-btn" data-card-id="${cardId}" data-tooltip="复制入参、出参协议">🤖</span>
           <span class="api-summary">${escapeHtml(endpoint.summary || '')}</span>
         </span>
-        <span class="favorite-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" title="收藏接口">☆</span>
-        <span class="share-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" data-operation-id="${escapeHtml(endpoint.operationId || '')}" data-api-group="${escapeHtml(endpoint.apiGroup || '')}" title="分享接口">🔗</span>
-        <span class="expand-icon">▼</span>
+        <span class="favorite-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" data-tooltip="收藏 / 取消收藏">☆</span>
+        <span class="share-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" data-operation-id="${escapeHtml(endpoint.operationId || '')}" data-api-group="${escapeHtml(endpoint.apiGroup || '')}" data-tooltip="分享链接">🔗</span>
+        <span class="expand-icon" data-tooltip="展开或收起接口详情">▼</span>
       </div>
       <div class="api-details" style="display: none;">
         <div class="details-content">

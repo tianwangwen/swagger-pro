@@ -7,7 +7,8 @@ function bindContentEvents(contentArea) {
   contentArea.querySelectorAll('.api-card').forEach(card => {
     card.addEventListener('click', function(e) {
       if (e.target.closest('.api-details')) return;
-      if (e.target.closest('.copy-path-btn')) return; // 不阻止复制按钮的点击
+      if (e.target.closest('.copy-path-btn')) return;
+      if (e.target.closest('.copy-protocol-btn')) return;
       if (e.target.closest('.favorite-icon')) return; // 不阻止收藏按钮的点击
       if (e.target.closest('.share-icon')) return; // 不阻止分享按钮的点击
       
@@ -111,6 +112,72 @@ function bindContentEvents(contentArea) {
       }
     });
   });
+
+  contentArea.querySelectorAll('.copy-protocol-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const cardId = this.getAttribute('data-card-id');
+      if (!cardId) return;
+      const ep = endpointMap.get(cardId);
+      if (!ep) return;
+      const text = typeof formatEndpointProtocolForAI === 'function'
+        ? formatEndpointProtocolForAI(ep)
+        : '';
+
+      if (!text) {
+        if (typeof showToast === 'function') {
+          showToast('暂无协议内容可复制');
+        }
+        return;
+      }
+
+      const applyCopiedState = (el) => {
+        const originalText = el.textContent;
+        el.textContent = '✓';
+        el.classList.add('copied');
+        if (typeof showToast === 'function') {
+          showToast('已复制接口协议（入参/出参）');
+        }
+        setTimeout(() => {
+          el.textContent = originalText;
+          el.classList.remove('copied');
+        }, 2000);
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          applyCopiedState(this);
+        }).catch(() => {
+          fallbackCopyProtocol(text, this, applyCopiedState);
+        });
+      } else {
+        fallbackCopyProtocol(text, this, applyCopiedState);
+      }
+    });
+  });
+
+  function fallbackCopyProtocol(text, btn, onSuccess) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      if (onSuccess) onSuccess(btn);
+    } catch (err) {
+      console.error('复制失败:', err);
+      if (typeof showToast === 'function') {
+        showToast('复制失败，请手动复制');
+      } else {
+        alert('复制失败，请手动复制');
+      }
+    }
+    document.body.removeChild(textArea);
+  }
   
   // 降级复制方案
   function fallbackCopy(text, btn) {

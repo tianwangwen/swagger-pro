@@ -118,3 +118,79 @@ function hideLoading() {
   const loader = document.getElementById('swagger-loader');
   if (loader) loader.remove();
 }
+
+// 全局即时 Tooltip（类似 Element Plus：深色气泡 + fixed 定位，不被 overflow 裁切）
+(function initSpTooltips() {
+  let popper = null;
+  let currentAnchor = null;
+  let hideTimer = null;
+
+  function getPopper() {
+    if (popper && popper.isConnected) {
+      return popper;
+    }
+    popper = document.createElement('div');
+    popper.className = 'sp-tooltip-popper';
+    popper.setAttribute('role', 'tooltip');
+    document.body.appendChild(popper);
+    return popper;
+  }
+
+  function hidePopper() {
+    if (popper) {
+      popper.classList.remove('sp-tooltip-popper--visible');
+      popper.textContent = '';
+    }
+    currentAnchor = null;
+  }
+
+  function showFor(anchor) {
+    const text = anchor.getAttribute('data-tooltip');
+    if (!text) return;
+    currentAnchor = anchor;
+    const p = getPopper();
+    p.textContent = text;
+    p.classList.add('sp-tooltip-popper--visible');
+    p.style.visibility = 'hidden';
+    const rect = anchor.getBoundingClientRect();
+    p.style.left = '0px';
+    p.style.top = '0px';
+    const pw = p.offsetWidth;
+    const ph = p.offsetHeight;
+    let left = rect.left + rect.width / 2 - pw / 2;
+    let top = rect.top - ph - 8;
+    if (top < 6) {
+      top = rect.bottom + 8;
+    }
+    left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+    top = Math.max(6, Math.min(top, window.innerHeight - ph - 6));
+    p.style.left = `${Math.round(left)}px`;
+    p.style.top = `${Math.round(top)}px`;
+    p.style.visibility = 'visible';
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-tooltip]');
+    // 仅当进入「带提示」的元素时才取消隐藏；否则离开按钮后经过父级会误清 timer，气泡一直不消失
+    if (el) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+      showFor(el);
+    }
+  }, true);
+
+  document.addEventListener('mouseout', (e) => {
+    const el = e.target.closest('[data-tooltip]');
+    if (!el) return;
+    const rel = e.relatedTarget;
+    if (rel && el.contains(rel)) return;
+    hideTimer = setTimeout(() => {
+      hideTimer = null;
+      if (currentAnchor === el) hidePopper();
+    }, 50);
+  }, true);
+
+  window.addEventListener('scroll', hidePopper, true);
+  window.addEventListener('blur', hidePopper);
+  window.addEventListener('resize', hidePopper);
+})();

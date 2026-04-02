@@ -129,7 +129,7 @@ function renderEnumCopyButton(description) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
   
-  return `<span class="enum-copy-btn" data-enum="${encodedEnum}" title="复制枚举值">📋</span>`;
+  return `<span class="enum-copy-btn" data-enum="${encodedEnum}" data-tooltip="复制枚举为前端可用的 JSON 数组">📋</span>`;
 }
 
 // 渲染请求参数（带示例和协议标签）
@@ -444,7 +444,7 @@ function renderSchemaProtocol(schema, definitions, visited = new Set(), level = 
         <tr>
           <td>
             <span class="param-name">
-              ${hasNested ? `<span class="param-expand-icon" data-expand-id="${expandId}" title="展开/收起">▼</span>` : '<span style="width: 16px; display: inline-block;"></span>'}
+              ${hasNested ? `<span class="param-expand-icon" data-expand-id="${expandId}" data-tooltip="展开或收起嵌套字段">▼</span>` : '<span style="width: 16px; display: inline-block;"></span>'}
               ${escapeHtml(key)}
             </span>
           </td>
@@ -508,5 +508,163 @@ function getParamType(param) {
   }
   if (param.type) return param.type;
   return 'string';
+}
+
+// 将 schema 转为缩进文本（供复制给 AI，与页面「协议」表语义一致）
+function serializeSchemaProtocolText(schema, definitions, visited = new Set(), indent = 0) {
+  const MAX_DEPTH = 12;
+  const pad = '  '.repeat(indent);
+  if (indent > MAX_DEPTH) {
+    return pad + '[已达到最大嵌套深度]\n';
+  }
+  if (!schema) {
+    return pad + '(无定义)\n';
+  }
+
+  if (schema.$ref) {
+    const refName = schema.$ref.split('/').pop();
+    if (visited.has(refName)) {
+      return pad + `[循环引用: ${refName}]\n`;
+    }
+    const newVisited = new Set(visited);
+    newVisited.add(refName);
+    const refSchema = definitions[refName];
+    if (refSchema) {
+      return serializeSchemaProtocolText(refSchema, definitions, newVisited, indent);
+    }
+    return pad + `[未找到定义: ${refName}]\n`;
+  }
+
+  if (schema.type === 'array' && schema.items) {
+    let out = pad + 'type: array\n';
+    out += pad + 'items:\n';
+    out += serializeSchemaProtocolText(schema.items, definitions, visited, indent + 1);
+    return out;
+  }
+
+  if (schema.type === 'object' || schema.properties) {
+    const props = schema.properties || {};
+    const required = schema.required || [];
+    const keys = Object.keys(props).slice(0, 200);
+    if (keys.length === 0) {
+      return pad + '(空对象)\n';
+    }
+    let out = '';
+    keys.forEach(key => {
+      const prop = props[key];
+      const reqLabel = required.includes(key) ? '必填' : '选填';
+      const typ = getSchemaType(prop, definitions);
+      const desc = (prop.description || '').replace(/\r?\n/g, ' ').trim();
+      const descSuffix = desc ? ` — ${desc}` : '';
+      out += `${pad}- ${key}: ${typ} [${reqLabel}]${descSuffix}\n`;
+
+      const newVisited = new Set(visited);
+      if (prop.$ref) {
+        const refName = prop.$ref.split('/').pop();
+        if (!newVisited.has(refName)) {
+          out += serializeSchemaProtocolText(prop, definitions, newVisited, indent + 1);
+        } else {
+          out += `${pad}  [循环引用: ${refName}]\n`;
+        }
+      } else if (prop.type === 'object' && prop.properties && Object.keys(prop.properties).length > 0) {
+        out += serializeSchemaProtocolText(prop, definitions, newVisited, indent + 1);
+      } else if (prop.type === 'array' && prop.items) {
+        const it = prop.items;
+        if (it.type === 'object' && it.properties) {
+          out += `${pad}  items (object):\n`;
+          out += serializeSchemaProtocolText(it, definitions, newVisited, indent + 2);
+        } else if (it.$ref || it.properties) {
+          out += `${pad}  items:\n`;
+          out += serializeSchemaProtocolText(it, definitions, newVisited, indent + 2);
+        } else {
+          out += `${pad}  items: ${getSchemaType(it, definitions)}\n`;
+        }
+      }
+    });
+    return out;
+  }
+
+  return pad + `类型: ${getSchemaType(schema, definitions)}\n`;
+}
+
+// 整接口入参/出参协议，便于粘贴给 AI
+function formatEndpointProtocolForAI(endpoint) {
+  const lines = [];
+  const def = endpoint.definitions || {};
+  const params = endpoint.parameters || [];
+
+  lines.push(`## ${endpoint.method} ${endpoint.path}`);
+  lines.push('');
+  if (endpoint.summary) {
+    lines.push(`**摘要:** ${endpoint.summary}`);
+  }
+  if (endpoint.operationId) {
+    lines.push(`**operationId:** ${endpoint.operationId}`);
+  }
+  if (endpoint.description) {
+    lines.push(`**描述:** ${endpoint.description.replace(/\r?\n/g, ' ')}`);
+  }
+  lines.push('');
+
+  const pathParams = params.filter(p => p.in === 'path');
+  const queryParams = params.filter(p => p.in === 'query');
+  const headerParams = params.filter(p => p.in === 'header');
+  const flatParams = [...pathParams, ...queryParams, ...headerParams];
+
+  if (flatParams.length > 0) {
+    lines.push('### 请求参数 (Path / Query / Header)');
+    flatParams.forEach(p => {
+      const reqLabel = p.required ? '必填' : '选填';
+      const desc = (p.description || '').replace(/\r?\n/g, ' ');
+      lines.push(`- **${p.name}** [${p.in}] \`${getParamType(p)}\` ${reqLabel}${desc ? ` — ${desc}` : ''}`);
+    });
+    lines.push('');
+  }
+
+  const bodyParam = endpoint.bodyParam;
+  if (bodyParam && bodyParam.schema) {
+    lines.push('### 请求体 (Body)');
+    lines.push('**示例 JSON:**');
+    lines.push('```json');
+    lines.push(formatJsonExample(bodyParam.schema, def));
+    lines.push('```');
+    lines.push('');
+    lines.push('**字段协议:**');
+    lines.push('```');
+    lines.push(serializeSchemaProtocolText(bodyParam.schema, def).replace(/\n$/, ''));
+    lines.push('```');
+    lines.push('');
+  } else if (!flatParams.length) {
+    lines.push('### 请求');
+    lines.push('（无 Path/Query/Header 参数与请求体定义）');
+    lines.push('');
+  }
+
+  const responses = endpoint.responses || {};
+  const codes = Object.keys(responses).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  if (codes.length > 0) {
+    lines.push('### 响应');
+    codes.forEach(code => {
+      const r = responses[code];
+      const rDesc = (r.description || '').replace(/\r?\n/g, ' ');
+      lines.push(`#### HTTP ${code}${rDesc ? ` — ${rDesc}` : ''}`);
+      if (r.schema) {
+        lines.push('**示例 JSON:**');
+        lines.push('```json');
+        lines.push(formatJsonExample(r.schema, def));
+        lines.push('```');
+        lines.push('');
+        lines.push('**字段协议:**');
+        lines.push('```');
+        lines.push(serializeSchemaProtocolText(r.schema, def).replace(/\n$/, ''));
+        lines.push('```');
+      } else {
+        lines.push('（无响应体 schema）');
+      }
+      lines.push('');
+    });
+  }
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
