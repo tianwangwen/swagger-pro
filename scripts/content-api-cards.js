@@ -35,6 +35,7 @@ function renderApiCard(endpoint, baseUrl) {
           <span class="api-path-text">${escapeHtml(endpoint.path)}</span>
           <span class="copy-path-btn" data-path="${escapeHtml(endpoint.path)}" data-tooltip="复制接口地址">📄</span>
           <span class="copy-protocol-btn" data-card-id="${cardId}" data-tooltip="复制入参、出参协议">🤖</span>
+          <span class="api-test-btn" data-card-id="${cardId}" data-tooltip="测试接口">🧪</span>
           <span class="api-summary">${escapeHtml(endpoint.summary || '')}</span>
         </span>
         <span class="favorite-icon" data-path="${escapeHtml(endpoint.path)}" data-method="${endpoint.method}" data-tag="${escapeHtml(endpoint.tag || '')}" data-tooltip="收藏 / 取消收藏">☆</span>

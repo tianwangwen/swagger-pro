@@ -47,7 +47,13 @@ function getHeaderHTMLContent(apiInfo, baseUrl) {
                   <div class="settings-item">
                       <label for="baseUrlInput">Base URL</label>
                       <input type="text" id="baseUrlInput" placeholder="/api/ddsadmin" />
-                      <div class="settings-item-desc">设置后，复制接口地址时会自动加上此Base URL</div>
+                      <div class="settings-item-desc">设置后，复制接口地址与「测试接口」会用于拼接完整请求 URL（可填路径前缀或完整 https 域名）</div>
+                  </div>
+                  <div class="settings-item">
+                      <label>自定义请求头</label>
+                      <div class="settings-item-desc">测试接口时会附加到请求；与弹窗内 <code>headers</code> 或文档中的 header 参数同名时，以弹窗内为准。</div>
+                      <div id="customHeadersList" class="custom-headers-list"></div>
+                      <button type="button" class="custom-headers-add-btn" id="customHeadersAddBtn">+ 添加请求头</button>
                   </div>
               </div>
               <div class="settings-modal-footer">

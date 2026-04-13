@@ -253,6 +253,63 @@ function formatJsonExample(schema, definitions, visited = new Set()) {
   return JSON.stringify(example, null, 2);
 }
 
+// OpenAPI 非 body 参数的示例值（用于「测试接口」默认 JSON）
+function buildParamExampleValue(param, definitions) {
+  if (!param) return '';
+  if (param.example !== undefined) return param.example;
+  const schema = param.schema;
+  if (schema) {
+    return buildExampleValue(schema, definitions);
+  }
+  const t = String(param.type || 'string').toLowerCase();
+  if (t === 'integer' || t === 'number') return 0;
+  if (t === 'boolean') return false;
+  if (t === 'array') return [];
+  return param.name ? String(param.name) : '';
+}
+
+/**
+ * 生成测试弹窗内默认「请求参数」JSON 文本（与详情区「示例」一致或组合 path/query/header/body）
+ */
+function buildDefaultRequestInputText(endpoint) {
+  const def = endpoint.definitions || {};
+  const params = (endpoint.parameters || []).filter(p => p.in !== 'body');
+  const bodyParam = endpoint.bodyParam;
+
+  const pathObj = {};
+  const queryObj = {};
+  const headerObj = {};
+  params.forEach(p => {
+    if (p.in === 'path') pathObj[p.name] = buildParamExampleValue(p, def);
+    else if (p.in === 'query') queryObj[p.name] = buildParamExampleValue(p, def);
+    else if (p.in === 'header') headerObj[p.name] = buildParamExampleValue(p, def);
+  });
+
+  const hasPQH = Object.keys(pathObj).length + Object.keys(queryObj).length + Object.keys(headerObj).length > 0;
+
+  if (bodyParam && bodyParam.schema) {
+    let bodyParsed;
+    try {
+      bodyParsed = JSON.parse(formatJsonExample(bodyParam.schema, def));
+    } catch {
+      bodyParsed = {};
+    }
+    if (hasPQH) {
+      return JSON.stringify(
+        { path: pathObj, query: queryObj, headers: headerObj, body: bodyParsed },
+        null,
+        2
+      );
+    }
+    return formatJsonExample(bodyParam.schema, def);
+  }
+
+  if (!hasPQH) {
+    return '{}';
+  }
+  return JSON.stringify({ path: pathObj, query: queryObj, headers: headerObj }, null, 2);
+}
+
 // 构建示例值对象
 function buildExampleValue(schema, definitions, visited = new Set()) {
   if (!schema) return {};

@@ -340,6 +340,9 @@ function renderContent(allApis, apiMap, baseUrl) {
       // 绑定事件
       bindContentEvents(contentArea);
       // 内容渲染完成后，再初始化收藏、设置和刷新，保证元素已存在
+      if (typeof initSwaggerProTestApi === 'function') {
+        initSwaggerProTestApi();
+      }
       if (typeof initFavorites === 'function') {
         initFavorites();
       }

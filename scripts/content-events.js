@@ -9,6 +9,7 @@ function bindContentEvents(contentArea) {
       if (e.target.closest('.api-details')) return;
       if (e.target.closest('.copy-path-btn')) return;
       if (e.target.closest('.copy-protocol-btn')) return;
+      if (e.target.closest('.api-test-btn')) return;
       if (e.target.closest('.favorite-icon')) return; // 不阻止收藏按钮的点击
       if (e.target.closest('.share-icon')) return; // 不阻止分享按钮的点击
       

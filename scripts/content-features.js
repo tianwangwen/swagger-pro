@@ -19,6 +19,50 @@ function initRefresh() {
     });
   });
 }
+function renderCustomHeaderRows(listEl, rows) {
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  const data = rows && rows.length ? rows : [{ key: '', value: '' }];
+  data.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'custom-header-row';
+    div.innerHTML = `
+      <input type="text" class="custom-header-key" placeholder="Header 名称" value="${escapeAttr(row.key || '')}" />
+      <input type="text" class="custom-header-value" placeholder="值" value="${escapeAttr(row.value || '')}" />
+      <button type="button" class="custom-header-remove" data-tooltip="删除此行">✕</button>
+    `;
+    div.querySelector('.custom-header-remove').addEventListener('click', () => {
+      div.remove();
+      if (!listEl.children.length) {
+        renderCustomHeaderRows(listEl, [{ key: '', value: '' }]);
+      }
+    });
+    listEl.appendChild(div);
+  });
+}
+
+function getCustomHeadersForSettings() {
+  try {
+    const raw = localStorage.getItem('swagger-customHeaders');
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function collectCustomHeadersFromDom(listEl) {
+  if (!listEl) return [];
+  const out = [];
+  listEl.querySelectorAll('.custom-header-row').forEach(row => {
+    const key = row.querySelector('.custom-header-key')?.value?.trim();
+    const value = row.querySelector('.custom-header-value')?.value ?? '';
+    if (key) out.push({ key, value });
+  });
+  return out;
+}
+
 function initSettings() {
   const settingsBtn = document.getElementById('settingsBtn');
   const settingsModal = document.getElementById('settingsModal');
@@ -26,6 +70,8 @@ function initSettings() {
   const settingsBtnSave = document.getElementById('settingsBtnSave');
   const settingsBtnCancel = document.getElementById('settingsBtnCancel');
   const baseUrlInput = document.getElementById('baseUrlInput');
+  const customHeadersList = document.getElementById('customHeadersList');
+  const customHeadersAddBtn = document.getElementById('customHeadersAddBtn');
   
   if (!settingsBtn || !settingsModal) return;
   
@@ -52,6 +98,7 @@ function initSettings() {
     if (baseUrlInput) {
       baseUrlInput.value = getBaseUrl();
     }
+    renderCustomHeaderRows(customHeadersList, getCustomHeadersForSettings());
     settingsModal.classList.add('active');
   }
   
@@ -66,14 +113,28 @@ function initSettings() {
       const baseUrl = baseUrlInput.value.trim();
       saveBaseUrl(baseUrl);
       console.log('保存baseUrl:', baseUrl);
-      closeSettings();
-      // 提示保存成功
-      const originalText = settingsBtnSave.textContent;
-      settingsBtnSave.textContent = '已保存';
-      setTimeout(() => {
-        settingsBtnSave.textContent = originalText;
-      }, 1000);
     }
+    try {
+      const headers = collectCustomHeadersFromDom(customHeadersList);
+      localStorage.setItem('swagger-customHeaders', JSON.stringify(headers));
+    } catch (err) {
+      console.error('保存自定义请求头失败:', err);
+    }
+    closeSettings();
+    const originalText = settingsBtnSave.textContent;
+    settingsBtnSave.textContent = '已保存';
+    setTimeout(() => {
+      settingsBtnSave.textContent = originalText;
+    }, 1000);
+  }
+
+  if (customHeadersAddBtn && customHeadersList) {
+    customHeadersAddBtn.addEventListener('click', () => {
+      renderCustomHeaderRows(customHeadersList, [
+        ...collectCustomHeadersFromDom(customHeadersList),
+        { key: '', value: '' }
+      ]);
+    });
   }
   
   // 绑定事件
@@ -95,11 +156,12 @@ function initSettings() {
     }
   });
   
-  // ESC键关闭
+  // ESC键关闭（测试弹窗打开时优先不关设置，由 content-test-api 先关测试窗）
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && settingsModal.classList.contains('active')) {
-      closeSettings();
-    }
+    if (e.key !== 'Escape' || !settingsModal.classList.contains('active')) return;
+    const testModal = document.getElementById('swaggerProTestModal');
+    if (testModal && testModal.classList.contains('active')) return;
+    closeSettings();
   });
 }
 function initFavorites() {
