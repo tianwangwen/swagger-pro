@@ -779,7 +779,7 @@ function getStylesContent() {
       .settings-modal {
           display: none;
           position: fixed;
-          top: 200px;
+          top: 320px;
           left: 0;
           right: 0;
           bottom: 0;
