@@ -494,6 +494,33 @@ function initSearch(allEndpoints) {
   
   // 初始化清空按钮状态
   updateClearButton();
+
+  // 预构建 controller/tag 索引，支持按左侧菜单分组名称搜索
+  const controllerMap = new Map();
+  allEndpoints.forEach(ep => {
+    const tag = (ep.tag || '').trim();
+    if (!tag) return;
+    if (!controllerMap.has(tag)) {
+      controllerMap.set(tag, {
+        tag,
+        endpointCount: 0,
+        description: ''
+      });
+    }
+    const controllerInfo = controllerMap.get(tag);
+    controllerInfo.endpointCount += 1;
+  });
+
+  // 优先从侧栏读取真实展示的 controller 描述（controller-name-desc）
+  document.querySelectorAll('.controller-group').forEach(group => {
+    const tag = group.getAttribute('data-tag');
+    if (!tag || !controllerMap.has(tag)) return;
+    const descEl = group.querySelector('.controller-name-desc');
+    const description = descEl ? descEl.textContent.trim() : '';
+    if (description) {
+      controllerMap.get(tag).description = description;
+    }
+  });
   
   searchInput.addEventListener('input', (e) => {
     updateClearButton();
@@ -504,28 +531,58 @@ function initSearch(allEndpoints) {
       return;
     }
     
-    const results = allEndpoints.filter(ep => {
+    const endpointResults = allEndpoints.filter(ep => {
       return ep.path.toLowerCase().includes(query) ||
              ep.summary.toLowerCase().includes(query) ||
              ep.description.toLowerCase().includes(query) ||
              ep.method.toLowerCase().includes(query);
-    }).slice(0, 10);
+    }).slice(0, 8);
+
+    const controllerResults = Array.from(controllerMap.values()).filter(controller => {
+      return controller.tag.toLowerCase().includes(query) ||
+             controller.description.toLowerCase().includes(query);
+    }).slice(0, 5);
+
+    const results = [
+      ...controllerResults.map(controller => ({ type: 'controller', ...controller })),
+      ...endpointResults.map(ep => ({ type: 'endpoint', ...ep }))
+    ].slice(0, 10);
     
     if (results.length > 0) {
-      searchResults.innerHTML = results.map(ep => `
-        <div class="result-item" data-path="${escapeHtml(ep.path)}" data-method="${ep.method}" data-tag="${escapeHtml(ep.tag || '')}">
-          <span class="result-method method-${ep.method.toLowerCase()}">${ep.method}</span>
-          <span class="result-path">${escapeHtml(ep.path)}</span>
-          <span class="result-desc">${escapeHtml(ep.summary || '')}</span>
-        </div>
-      `).join('');
+      searchResults.innerHTML = results.map(item => {
+        if (item.type === 'controller') {
+          return `
+            <div class="result-item result-item-controller" data-type="controller" data-tag="${escapeHtml(item.tag)}">
+              <span class="result-method result-tag">TAG</span>
+              <span class="result-path">${escapeHtml(item.tag)}</span>
+              <span class="result-desc">${escapeHtml(item.description || `共 ${item.endpointCount} 个接口`)}</span>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="result-item" data-type="endpoint" data-path="${escapeHtml(item.path)}" data-method="${item.method}" data-tag="${escapeHtml(item.tag || '')}">
+            <span class="result-method method-${item.method.toLowerCase()}">${item.method}</span>
+            <span class="result-path">${escapeHtml(item.path)}</span>
+            <span class="result-desc">${escapeHtml(item.summary || '')}</span>
+          </div>
+        `;
+      }).join('');
       
       // 绑定搜索结果点击事件
       searchResults.querySelectorAll('.result-item').forEach(item => {
         item.addEventListener('click', function() {
+          const type = this.getAttribute('data-type');
+          const tag = this.getAttribute('data-tag');
+          if (type === 'controller') {
+            if (window.scrollToControllerTag) {
+              window.scrollToControllerTag(tag);
+            }
+            return;
+          }
+
           const path = this.getAttribute('data-path');
           const method = this.getAttribute('data-method');
-          const tag = this.getAttribute('data-tag');
           scrollToEndpoint(path, method, tag);
         });
       });
@@ -558,6 +615,45 @@ function initSearch(allEndpoints) {
   });
 }
 function initInteractions() {
+  // 滚动并定位到左侧指定 controller/tag
+  window.scrollToControllerTag = function(tag) {
+    if (!tag) return;
+    const targetGroup = document.querySelector(`.controller-group[data-tag="${CSS.escape(tag)}"]`);
+    if (!targetGroup) return;
+
+    // 展开并激活当前分组
+    targetGroup.classList.add('expanded');
+    const targetHeader = targetGroup.querySelector('.controller-header');
+    if (targetHeader) {
+      document.querySelectorAll('.controller-header').forEach(h => h.classList.remove('active'));
+      targetHeader.classList.add('active');
+    }
+
+    // 取消接口高亮，避免误导
+    document.querySelectorAll('.endpoint-item').forEach(item => item.classList.remove('active'));
+
+    // 滚动侧边栏使分组可见
+    const navTree = document.getElementById('navTree');
+    if (navTree) {
+      const headerToScroll = targetHeader || targetGroup;
+      const headerRect = headerToScroll.getBoundingClientRect();
+      const navRect = navTree.getBoundingClientRect();
+      if (headerRect.top < navRect.top || headerRect.bottom > navRect.bottom) {
+        headerToScroll.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    // 同步滚动右侧内容到对应 section（可选增强）
+    const contentArea = document.getElementById('contentArea');
+    const targetSection = document.querySelector(`.api-section[data-tag="${CSS.escape(tag)}"]`);
+    if (contentArea && targetSection) {
+      const targetScrollTop = targetSection.offsetTop - 20;
+      contentArea.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+    }
+
+    document.getElementById('searchResults')?.classList.remove('active');
+  };
+
   // 滚动到指定接口（固定0.3秒动画）
   window.scrollToEndpoint = function(path, method, tag) {
     // 转义路径中的特殊字符用于ID（与renderApiCard中的逻辑一致）

@@ -206,6 +206,10 @@ function getStylesContent() {
       .method-put { background: rgba(245, 158, 11, 0.2); color: var(--accent-orange); }
       .method-delete { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
       .method-patch { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+      .result-tag {
+          background: rgba(148, 163, 184, 0.2);
+          color: #cbd5e1;
+      }
       .result-path {
           display: inline-block;
           width: 320px;
@@ -1322,7 +1326,7 @@ function getStylesContent() {
           padding-bottom: 10px;
       }
       .sp-test-panels {
-          min-height: 240px;
+          min-height: 140px;
       }
       .sp-test-tab {
           height: 30px;
@@ -1346,7 +1350,7 @@ function getStylesContent() {
       }
       .sp-test-panel {
           display: none;
-          min-height: 240px;
+          min-height: 140px;
       }
       .sp-test-panel.active {
           display: block;
@@ -1433,7 +1437,7 @@ function getStylesContent() {
       }
       .sp-test-modal__textarea {
           width: 100%;
-          min-height: 200px;
+          min-height: 100px;
           padding: 12px;
           border-radius: 10px;
           border: 1px solid var(--border-color);

@@ -9,6 +9,8 @@ let testModalState = {
   endpoint: null,
   activeTab: 'body',
   seed: null,
+  fullBodyText: '{}',
+  requiredBodyText: '{}',
   canHaveBody: true
 };
 
@@ -208,6 +210,82 @@ function buildSeedRows(endpoint, seed) {
   };
 }
 
+function buildBodyExampleValueByMode(schema, definitions, options = {}, visited = new Set()) {
+  if (!schema) return {};
+  const { onlyRequired = false, isRoot = false } = options;
+
+  if (schema.$ref) {
+    const refPath = String(schema.$ref).split('/');
+    const refName = refPath[refPath.length - 1];
+    if (!refName || visited.has(refName)) return {};
+    const nextVisited = new Set(visited);
+    nextVisited.add(refName);
+    const refSchema = definitions && definitions[refName];
+    return refSchema ? buildBodyExampleValueByMode(refSchema, definitions, { onlyRequired, isRoot }, nextVisited) : {};
+  }
+
+  if (schema.type === 'array') {
+    if (!schema.items) return [];
+    const itemValue = buildBodyExampleValueByMode(schema.items, definitions, { onlyRequired, isRoot: false }, visited);
+    return [itemValue];
+  }
+
+  if (schema.type === 'object' || schema.properties) {
+    const props = schema.properties || {};
+    const requiredSet = new Set(schema.required || []);
+    const result = {};
+
+    Object.keys(props).forEach(key => {
+      if (onlyRequired && !requiredSet.has(key)) return;
+      const lowerKey = String(key).toLowerCase();
+      if (lowerKey === 'pageno') {
+        result[key] = 1;
+        return;
+      }
+      if (lowerKey === 'pagesize') {
+        result[key] = 10;
+        return;
+      }
+      result[key] = buildBodyExampleValueByMode(props[key], definitions, { onlyRequired, isRoot: false }, visited);
+    });
+
+    // 根对象若没有 required 字段，默认返回空对象，满足“只填必填”
+    if (onlyRequired && isRoot && requiredSet.size === 0) {
+      return {};
+    }
+    return result;
+  }
+
+  if (schema.example !== undefined) return schema.example;
+  if (schema.type === 'string') return schema.description || 'string';
+  if (schema.type === 'integer') return 0;
+  if (schema.type === 'number') return 0.0;
+  if (schema.type === 'boolean') return false;
+  return null;
+}
+
+function buildBodyTextByMode(endpoint, mode) {
+  const bodySchema = endpoint && endpoint.bodyParam && endpoint.bodyParam.schema;
+  if (!bodySchema) return '{}';
+  const definitions = endpoint.definitions || {};
+  const onlyRequired = mode === 'required';
+  const bodyObj = buildBodyExampleValueByMode(bodySchema, definitions, { onlyRequired, isRoot: true });
+  return JSON.stringify(bodyObj, null, 2);
+}
+
+function applyBodyTemplate(mode, shouldToast) {
+  const modal = document.getElementById(SWAGGER_PRO_TEST_MODAL_ID);
+  if (!modal) return;
+  const bodyTa = modal.querySelector('#spTestBodyText');
+  if (!bodyTa || bodyTa.disabled) return;
+
+  const text = mode === 'all' ? (testModalState.fullBodyText || '{}') : (testModalState.requiredBodyText || '{}');
+  bodyTa.value = text;
+  if (typeof shouldToast === 'boolean' && shouldToast && typeof showToast === 'function') {
+    showToast(mode === 'all' ? '已填充全部入参' : '已填充必填入参');
+  }
+}
+
 function ensureTestModal() {
   let modal = document.getElementById(SWAGGER_PRO_TEST_MODAL_ID);
   if (modal) return modal;
@@ -238,7 +316,7 @@ function ensureTestModal() {
           <div class="sp-test-panel" data-panel="body">
             <label class="sp-test-modal__label-block" for="spTestBodyText">
               Body (JSON)
-              <span class="sp-test-modal__label-tip" data-tooltip="入参默认与详情区示例一致；可直接编辑 JSON。">!</span>
+              <span class="sp-test-modal__label-tip" data-tooltip="默认仅填充必填字段；可一键填充全部入参并手动编辑 JSON。">!</span>
             </label>
             <div id="spTestBodyDisabledTip" class="sp-test-panel-tip" style="display:none;">当前请求方法通常不使用 Body。</div>
             <textarea id="spTestBodyText" class="sp-test-modal__textarea" spellcheck="false" rows="10"></textarea>
@@ -258,6 +336,8 @@ function ensureTestModal() {
         </div>
 
         <div class="sp-test-modal__actions">
+          <button type="button" class="sp-test-modal__btn sp-test-modal__btn--ghost" id="spTestBodyFillRequired">填充必填</button>
+          <button type="button" class="sp-test-modal__btn sp-test-modal__btn--ghost" id="spTestBodyFillAll">填充全部</button>
           <button type="button" class="sp-test-modal__btn sp-test-modal__btn--ghost" id="spTestResetDefault">恢复示例</button>
           <button type="button" class="sp-test-modal__btn sp-test-modal__btn--primary" id="spTestSend">发送请求</button>
         </div>
@@ -370,12 +450,17 @@ function openSwaggerProTestModal(cardId) {
   const modal = ensureTestModal();
   const defaultText = typeof buildDefaultRequestInputText === 'function' ? buildDefaultRequestInputText(ep) : '{}';
   const seedRows = buildSeedRows(ep, parseDefaultSeed(ep, defaultText));
+  const fullBodyText = buildBodyTextByMode(ep, 'all');
+  const requiredBodyText = buildBodyTextByMode(ep, 'required');
+  const seedBodyText = requiredBodyText || '{}';
 
   testModalState = {
     cardId,
     endpoint: ep,
     activeTab: 'body',
-    seed: seedRows,
+    seed: { ...seedRows, bodyText: seedBodyText },
+    fullBodyText,
+    requiredBodyText,
     canHaveBody: !['GET', 'HEAD'].includes(String(ep.method || 'GET').toUpperCase())
   };
 
@@ -504,6 +589,18 @@ function initSwaggerProTestApi() {
     if (e.target.id === 'spTestResetDefault') {
       e.preventDefault();
       resetToSeed();
+      return;
+    }
+
+    if (e.target.id === 'spTestBodyFillRequired') {
+      e.preventDefault();
+      applyBodyTemplate('required', true);
+      return;
+    }
+
+    if (e.target.id === 'spTestBodyFillAll') {
+      e.preventDefault();
+      applyBodyTemplate('all', true);
       return;
     }
 
